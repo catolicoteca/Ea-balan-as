@@ -8,3 +8,5 @@ dist
 *.tsbuildinfo
 *.log
 *.zip
+scratch_*.ts
+.vercel
