@@ -15,7 +15,7 @@ export function validatePublicSupabaseConfig(url: string, key: string): {
     return {
       valid: false,
       reason:
-        'Variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY não configuradas no arquivo .env.',
+        'Variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY não configuradas (defina no .env local ou em Environment Variables na Vercel e refaça o deploy).',
     };
   }
 

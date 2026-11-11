@@ -138,12 +138,18 @@ export const AuthPage: React.FC = () => {
         />
 
         <div className="relative z-10">
-          <BrandLogo name="EA Balanças" primaryColor="#0D9488" size="lg" variant="dark" />
+          <BrandLogo
+            name="METRION"
+            subtitle="Gestão de Assistência Técnica & Metrologia"
+            primaryColor="#0D9488"
+            size="lg"
+            variant="dark"
+          />
 
           <div className="mt-10 space-y-4">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-teal-500/15 text-teal-200 border border-teal-400/25">
               <ShieldCheck className="w-3.5 h-3.5" />
-              Plataforma SaaS Multi-tenant
+              Metrion • Plataforma SaaS Multi-tenant
             </span>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight leading-snug">
               Gestão Corporativa de Assistência Técnica e Metrologia em Campo
@@ -172,7 +178,7 @@ export const AuthPage: React.FC = () => {
         </div>
 
         <div className="relative z-10 pt-8 mt-8 border-t border-white/10 text-xs text-slate-400 flex items-center justify-between gap-2">
-          <span>EA Balanças • SaaS B2B</span>
+          <span>METRION • SaaS B2B</span>
           <span className="flex items-center gap-1 text-teal-300">
             <Lock className="w-3.5 h-3.5" />
             Supabase Auth + PostgreSQL RLS
@@ -186,15 +192,15 @@ export const AuthPage: React.FC = () => {
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-5">
             <div>
               <h2 className="text-xl font-bold text-slate-900">
-                {mode === 'login' && 'Acessar sua conta'}
-                {mode === 'signup' && 'Criar conta de acesso'}
+                {mode === 'login' && 'Acessar o Metrion'}
+                {mode === 'signup' && 'Criar conta no Metrion'}
                 {mode === 'recovery' && 'Recuperar senha'}
               </h2>
               <p className="text-xs text-slate-500 mt-1">
                 {mode === 'login' &&
-                  'Entre com seu e-mail corporativo e senha cadastrados no Supabase.'}
+                  'Entre com seu e-mail corporativo e senha cadastrados para acessar sua empresa.'}
                 {mode === 'signup' &&
-                  'Cadastre seu usuário. O primeiro acesso inicializa a EA Balanças; demais usuários recebem vínculo por convite da empresa.'}
+                  'Cadastre seu usuário. O primeiro acesso inicializa sua empresa no Metrion; demais usuários recebem vínculo por convite.'}
                 {mode === 'recovery' &&
                   'Enviaremos um link seguro de redefinição para o seu e-mail.'}
               </p>
@@ -204,7 +210,7 @@ export const AuthPage: React.FC = () => {
               <AlertBanner
                 variant="error"
                 title="Configuração Pendente"
-                message={supabaseConfigStatus.reason ?? 'Verifique o arquivo .env'}
+                message={supabaseConfigStatus.reason ?? 'Verifique as variáveis de ambiente VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.'}
               />
             )}
 
@@ -228,7 +234,7 @@ export const AuthPage: React.FC = () => {
                 type="email"
                 required
                 autoComplete="email"
-                placeholder="voce@eabalancas.com.br"
+                placeholder="voce@suaempresa.com.br"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 error={fieldErrors.email}

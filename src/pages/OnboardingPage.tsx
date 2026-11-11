@@ -80,7 +80,12 @@ export const OnboardingPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#F4F7FA] flex flex-col">
       <header className="bg-[#0B2545] text-white px-6 py-4 flex items-center justify-between">
-        <BrandLogo name="EA Balanças" primaryColor="#0D9488" variant="dark" />
+        <BrandLogo
+          name="METRION"
+          subtitle="Inicialização da Plataforma SaaS"
+          primaryColor="#0D9488"
+          variant="dark"
+        />
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-300 hidden sm:inline">
             {user?.email}
@@ -102,8 +107,8 @@ export const OnboardingPage: React.FC = () => {
             <SchemaSetupBanner onRetry={refreshTenantContext} />
           ) : isPlatformSetupNeeded ? (
             <Card
-              title="Inicialização da Plataforma SaaS — EA Balanças"
-              subtitle="Detectamos que esta instância recém-migrada ainda não possui administrador ou empresa inicial. Configure a empresa matriz abaixo."
+              title="Inicialização da Plataforma SaaS — Metrion"
+              subtitle="Detectamos que esta instância recém-migrada ainda não possui administrador ou empresa inicial. Configure a primeira empresa (EA Balanças) abaixo."
             >
               <form onSubmit={handleBootstrap} className="space-y-4">
                 {errorMsg && <AlertBanner variant="error" message={errorMsg} />}

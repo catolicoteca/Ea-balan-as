@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 
 interface BrandLogoProps {
   name?: string;
+  subtitle?: string;
   logoUrl?: string | null;
   primaryColor?: string;
   size?: 'sm' | 'md' | 'lg';
@@ -9,7 +10,8 @@ interface BrandLogoProps {
 }
 
 export const BrandLogo: React.FC<BrandLogoProps> = ({
-  name = 'EA Balanças',
+  name = 'Metrion',
+  subtitle = 'Assistência Técnica & Metrologia',
   logoUrl,
   primaryColor = '#0D9488',
   size = 'md',
@@ -83,7 +85,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
             variant === 'dark' ? 'text-slate-300/85' : 'text-slate-500'
           }`}
         >
-          Assistência Técnica & Metrologia
+          {subtitle}
         </div>
       </div>
     </div>

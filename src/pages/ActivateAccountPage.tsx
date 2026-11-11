@@ -255,7 +255,7 @@ export const ActivateAccountPage: React.FC = () => {
           <Loader2 className="w-8 h-8 animate-spin text-teal-600 mx-auto" />
           <h2 className="text-base font-bold text-slate-900">Validando Convite de Ativação...</h2>
           <p className="text-xs text-slate-500">
-            Verificando credenciais e integridade das permissões junto ao servidor EA Balanças.
+            Verificando credenciais e integridade das permissões junto ao servidor Metrion.
           </p>
         </div>
       </div>
@@ -351,7 +351,12 @@ export const ActivateAccountPage: React.FC = () => {
     <div className="min-h-screen bg-[#F4F7FA] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center mb-3">
-          <BrandLogo name="EA Balanças" size="lg" />
+          <BrandLogo
+            name="METRION"
+            subtitle="Ativação de Acesso em Campo"
+            size="lg"
+            variant="light"
+          />
         </div>
         <h2 className="text-center text-xl font-bold tracking-tight text-slate-900">
           Ativação de Acesso de Técnico
@@ -539,7 +544,7 @@ export const ActivateAccountPage: React.FC = () => {
           )}
 
           <div className="pt-2 text-center text-[11px] text-slate-500">
-            Protegido por criptografia Supabase Auth e isolamento multi-tenant EA Balanças.
+            Protegido por criptografia Supabase Auth e isolamento multi-tenant Metrion.
           </div>
         </div>
       </div>
