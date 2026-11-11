@@ -12,6 +12,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { useAuthTenant } from '../../contexts/AuthTenantContext';
 import { translateSupabaseError } from '../../lib/errors';
+import { buildWhatsAppUrl } from '../../lib/validation';
 import type {
   OSStatus,
   ServiceOrder,
@@ -218,10 +219,7 @@ export const ServiceOrderDetailModal: React.FC<ServiceOrderDetailModalProps> = (
     const osLink = `${origin}/tecnico/os/${order.id}`;
     msg += `\n*Link de Acesso Direto à OS:*\n${osLink}\n`;
 
-    const cleanPhone = order.client?.phone?.replace(/\D/g, '') || '';
-    const url = cleanPhone
-      ? `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(msg)}`
-      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    const url = buildWhatsAppUrl(order.client?.phone, msg);
     window.open(url, '_blank');
   };
 

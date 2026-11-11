@@ -12,13 +12,16 @@ import {
   AlertTriangle,
   Check,
   Trash2,
+  XCircle,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthTenant } from '../contexts/AuthTenantContext';
 import { translateSupabaseError } from '../lib/errors';
 import {
+  buildWhatsAppUrl,
   formatCPF,
   formatPhone,
+  normalizeBrazilianPhoneDigits,
   technicianSchema,
   zodErrorsToMap,
 } from '../lib/validation';
@@ -52,6 +55,7 @@ export const TechniciansPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
+  const [copiedInvId, setCopiedInvId] = useState<string | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTech, setEditingTech] = useState<Technician | null>(null);
@@ -144,6 +148,8 @@ export const TechniciansPage: React.FC = () => {
     const link = getActivationLink(invitationId);
     try {
       await navigator.clipboard.writeText(link);
+      setCopiedInvId(invitationId);
+      setTimeout(() => setCopiedInvId((curr) => (curr === invitationId ? null : curr)), 2500);
       setToastMsg('Link de ativação copiado para a área de transferência!');
     } catch {
       setToastMsg(`Link gerado: ${link}`);
@@ -153,21 +159,46 @@ export const TechniciansPage: React.FC = () => {
   const handleSendWhatsApp = (t: Technician, invId: string) => {
     const link = getActivationLink(invId);
     const company = activeCompany?.name || 'EA Balanças';
-    const cleanPhone = t.phone?.replace(/\D/g, '') || '';
 
     let msg = `Olá, *${t.full_name}*!\n\n`;
     msg += `Você foi cadastrado como Técnico na equipe da *${company}*.\n`;
     msg += `Para ativar seu acesso ao aplicativo em campo e receber suas Ordens de Serviço, clique no link seguro abaixo e defina sua senha pessoal:\n\n`;
     msg += `${link}\n\n`;
-    msg += `_Este convite é pessoal, intransferível e possui validade de 7 dias._`;
+    msg += `_Este convite é pessoal, intransferível, exclusivo da ${company} e possui validade de 7 dias._`;
 
-    const url = cleanPhone
-      ? `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(msg)}`
-      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    const url = buildWhatsAppUrl(t.phone, msg);
     window.open(url, '_blank');
   };
 
+  const handleRevokeInvitation = async (inv: CompanyInvitation, t: Technician) => {
+    if (!activeCompany) return;
+    const confirmed = window.confirm(
+      `Revogar o convite de "${t.full_name}"?\n\nO link enviado anteriormente deixará de funcionar imediatamente. Você poderá gerar um novo convite depois.`
+    );
+    if (!confirmed) return;
+
+    setLoadingActionId(inv.id);
+    setError(null);
+    try {
+      const { error: rErr } = await supabase
+        .from('company_invitations')
+        .update({ status: 'revoked' })
+        .eq('id', inv.id)
+        .eq('company_id', activeCompany.id);
+
+      if (rErr) throw rErr;
+      setToastMsg(`Convite de ${t.full_name} revogado. Gere um novo link quando desejar.`);
+      await loadTechnicians();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Falha ao revogar convite.';
+      setError(msg);
+    } finally {
+      setLoadingActionId(null);
+    }
+  };
+
   const handleResendInvitation = async (inv: CompanyInvitation, t: Technician) => {
+    if (!activeCompany) return;
     setLoadingActionId(inv.id);
     try {
       const { error: rpcErr } = await supabase.rpc('resend_company_invitation', {
@@ -178,7 +209,8 @@ export const TechniciansPage: React.FC = () => {
         await supabase
           .from('company_invitations')
           .update({ created_at: new Date().toISOString(), status: 'pending' })
-          .eq('id', inv.id);
+          .eq('id', inv.id)
+          .eq('company_id', activeCompany.id);
       }
 
       setToastMsg(`Convite renovado com sucesso para ${t.full_name}! Validade renovada por mais 7 dias.`);
@@ -194,7 +226,16 @@ export const TechniciansPage: React.FC = () => {
   const handleCreateInvitation = async (t: Technician) => {
     if (!t.email || !activeCompany) return;
     setLoadingActionId(t.id);
+    setError(null);
     try {
+      // Invalida eventuais convites pendentes anteriores deste técnico antes de gerar um novo token individual
+      await supabase
+        .from('company_invitations')
+        .update({ status: 'revoked' })
+        .eq('company_id', activeCompany.id)
+        .eq('technician_id', t.id)
+        .eq('status', 'pending');
+
       const { error: insErr } = await supabase.from('company_invitations').insert({
         company_id: activeCompany.id,
         email: t.email.toLowerCase(),
@@ -205,7 +246,7 @@ export const TechniciansPage: React.FC = () => {
       });
 
       if (insErr) throw insErr;
-      setToastMsg(`Convite gerado para ${t.full_name}! Você já pode enviar pelo WhatsApp.`);
+      setToastMsg(`Novo convite gerado para ${t.full_name}! Copie o link ou envie pelo WhatsApp.`);
       await loadTechnicians();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Falha ao gerar convite.';
@@ -238,7 +279,7 @@ export const TechniciansPage: React.FC = () => {
     setEditingTech(t);
     setFullName(t.full_name);
     setEmail(t.email ?? '');
-    setPhone(t.phone ?? '');
+    setPhone(formatPhone(t.phone ?? ''));
     setCpf(t.document_cpf ?? '');
     setRegCode(t.registration_code ?? '');
     setSpecialtiesText((t.specialties ?? []).join(', '));
@@ -500,24 +541,40 @@ export const TechniciansPage: React.FC = () => {
                   {/* Status e Gestão do Convite de Acesso */}
                   <div className="pt-2 border-t border-slate-100 space-y-2 text-[11px]">
                     <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         {t.user_id ? (
                           <>
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                             <span className="text-emerald-800 font-medium">
-                              Conta de acesso vinculada
+                              Conta vinculada
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+                              Convite Aceito
                             </span>
                           </>
                         ) : (
                           <>
-                            <span className="text-slate-500 font-medium">Acesso:</span>
+                            <span className="text-slate-500 font-medium">Convite:</span>
                             {(() => {
                               const inv = findInvitationForTech(t);
                               const st = getInvitationStatus(inv);
+                              const expiresLabel = inv
+                                ? new Date(
+                                    new Date(inv.created_at).getTime() + 7 * 24 * 60 * 60 * 1000
+                                  ).toLocaleDateString('pt-BR')
+                                : '';
                               if (st.status === 'accepted') {
                                 return (
                                   <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
-                                    Convite Aceito
+                                    Aceito
+                                  </span>
+                                );
+                              }
+                              if (st.status === 'revoked') {
+                                return (
+                                  <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-300 flex items-center gap-1">
+                                    <XCircle className="w-3 h-3 text-slate-500" />
+                                    Revogado
                                   </span>
                                 );
                               }
@@ -525,7 +582,7 @@ export const TechniciansPage: React.FC = () => {
                                 return (
                                   <span className="px-2 py-0.5 rounded-full bg-red-50 text-red-700 font-semibold border border-red-200 flex items-center gap-1">
                                     <AlertTriangle className="w-3 h-3 text-red-600" />
-                                    Convite Expirado
+                                    Expirado
                                   </span>
                                 );
                               }
@@ -533,7 +590,7 @@ export const TechniciansPage: React.FC = () => {
                                 return (
                                   <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 font-semibold border border-amber-200 flex items-center gap-1">
                                     <Clock className="w-3 h-3 text-amber-600" />
-                                    Convite Pendente
+                                    Pendente (até {expiresLabel})
                                   </span>
                                 );
                               }
@@ -557,20 +614,25 @@ export const TechniciansPage: React.FC = () => {
                       </span>
                     </div>
 
-                    {/* Botões de Ação para Convite WhatsApp e Link */}
+                    {/* Botões de Ação para Convite WhatsApp, Copiar Link, Revogar e Gerar Novo */}
                     {!t.user_id && (
                       <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-dashed border-slate-200">
                         {(() => {
                           const inv = findInvitationForTech(t);
-                          if (!inv) {
+                          const st = getInvitationStatus(inv);
+
+                          if (!inv || st.status === 'revoked') {
                             return t.email ? (
                               <button
+                                type="button"
                                 onClick={() => handleCreateInvitation(t)}
                                 disabled={loadingActionId === t.id}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 text-[11px] font-medium border border-teal-200 transition-colors"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-semibold shadow-xs transition-colors disabled:opacity-60"
                               >
-                                <Plus className="w-3 h-3 text-teal-600" />
-                                <span>Gerar Convite de Acesso</span>
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>
+                                  {st.status === 'revoked' ? 'Gerar novo convite' : 'Gerar convite'}
+                                </span>
                               </button>
                             ) : (
                               <span className="text-[10px] text-slate-400 italic">
@@ -579,41 +641,97 @@ export const TechniciansPage: React.FC = () => {
                             );
                           }
 
-                          const st = getInvitationStatus(inv);
+                          if (st.status === 'expired') {
+                            return (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCreateInvitation(t)}
+                                  disabled={loadingActionId === t.id}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-semibold shadow-xs transition-colors"
+                                >
+                                  <RefreshCw className="w-3 h-3" />
+                                  <span>Gerar novo convite</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRevokeInvitation(inv, t)}
+                                  disabled={loadingActionId === inv.id}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-red-700 hover:bg-red-50 text-[11px] font-medium border border-red-200 transition-colors"
+                                >
+                                  <XCircle className="w-3 h-3" />
+                                  <span>Revogar</span>
+                                </button>
+                              </>
+                            );
+                          }
+
+                          if (st.status === 'accepted') {
+                            return null;
+                          }
+
+                          const phoneDigits = normalizeBrazilianPhoneDigits(t.phone ?? '');
+                          const hasPhone = phoneDigits.length === 10 || phoneDigits.length === 11;
+
                           return (
                             <>
-                              {/* Botão Enviar por WhatsApp */}
                               <button
+                                type="button"
                                 onClick={() => handleSendWhatsApp(t, inv.id)}
                                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold shadow-xs transition-colors"
-                                title="Enviar convite de ativação com link seguro via WhatsApp"
+                                title={
+                                  hasPhone
+                                    ? `Enviar convite via WhatsApp para ${formatPhone(t.phone ?? '')}`
+                                    : 'Compartilhar convite via WhatsApp (sem número cadastrado)'
+                                }
                               >
                                 <Share2 className="w-3.5 h-3.5" />
-                                <span>Enviar convite por WhatsApp</span>
+                                <span>
+                                  {hasPhone
+                                    ? `WhatsApp (${formatPhone(t.phone ?? '')})`
+                                    : 'Compartilhar no WhatsApp'}
+                                </span>
                               </button>
 
-                              {/* Botão Copiar Link */}
                               <button
+                                type="button"
                                 onClick={() => handleCopyLink(inv.id)}
                                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-medium border border-slate-300 transition-colors"
-                                title="Copiar link de ativação para a área de transferência"
+                                title="Copiar link individual de ativação"
                               >
-                                <Copy className="w-3.5 h-3.5 text-slate-500" />
-                                <span>Copiar link de convite</span>
+                                {copiedInvId === inv.id ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5 text-slate-500" />
+                                )}
+                                <span>{copiedInvId === inv.id ? 'Copiado!' : 'Copiar link'}</span>
                               </button>
 
-                              {/* Botão Reenviar (se pendente ou expirado) */}
-                              {(st.status === 'expired' || st.status === 'pending') && (
-                                <button
-                                  onClick={() => handleResendInvitation(inv, t)}
-                                  disabled={loadingActionId === inv.id}
-                                  className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 text-[11px] font-medium transition-colors"
-                                  title="Renovar validade do convite por mais 7 dias"
-                                >
-                                  <RefreshCw className={`w-3 h-3 ${loadingActionId === inv.id ? 'animate-spin' : ''}`} />
-                                  <span>Reenviar</span>
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleResendInvitation(inv, t)}
+                                disabled={loadingActionId === inv.id}
+                                className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 text-[11px] font-medium transition-colors"
+                                title="Renovar validade por mais 7 dias mantendo este link"
+                              >
+                                <RefreshCw
+                                  className={`w-3 h-3 ${
+                                    loadingActionId === inv.id ? 'animate-spin' : ''
+                                  }`}
+                                />
+                                <span>Renovar</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleRevokeInvitation(inv, t)}
+                                disabled={loadingActionId === inv.id}
+                                className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-red-600 hover:bg-red-50 text-[11px] font-medium transition-colors"
+                                title="Invalidar este link de convite imediatamente"
+                              >
+                                <XCircle className="w-3 h-3" />
+                                <span>Revogar</span>
+                              </button>
                             </>
                           );
                         })()}
@@ -690,8 +808,14 @@ export const TechniciansPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <InputField
               label="Telefone / Celular"
+              type="tel"
+              inputMode="tel"
+              maxLength={20}
+              placeholder="(11) 99999-9999"
+              hint="Celular (11 dígitos) ou fixo (10 dígitos) com DDD"
               value={phone}
               onChange={(e) => setPhone(formatPhone(e.target.value))}
+              error={fieldErrors.phone}
             />
             <InputField
               label="CPF"

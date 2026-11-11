@@ -27,13 +27,56 @@ export function formatCPF(val: string): string {
   return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
 }
 
+export function normalizeBrazilianPhoneDigits(val: string): string {
+  let d = onlyDigits(val);
+  // Remove código do país (+55) caso colado com DDI (12 ou 13 dígitos)
+  if (d.length >= 12 && d.startsWith('55')) {
+    d = d.slice(2);
+  }
+  // Remove zero à esquerda de discagem interurbana (ex.: 011999999999)
+  if (d.length >= 11 && d.startsWith('0')) {
+    d = d.slice(1);
+  }
+  return d.slice(0, 11);
+}
+
 export function formatPhone(val: string): string {
-  const d = onlyDigits(val).slice(0, 11);
+  const d = normalizeBrazilianPhoneDigits(val);
   if (d.length === 0) return '';
   if (d.length <= 2) return `(${d}`;
   if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
   if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+export function isValidBrazilianPhone(val?: string | null): boolean {
+  if (!val || onlyDigits(val).length === 0) return true;
+  const d = normalizeBrazilianPhoneDigits(val);
+  return d.length === 10 || d.length === 11;
+}
+
+export const optionalBrazilianPhoneSchema = z
+  .string()
+  .trim()
+  .optional()
+  .refine(
+    (v) => isValidBrazilianPhone(v),
+    'Informe um telefone válido com DDD: 10 dígitos (fixo) ou 11 dígitos (celular).'
+  )
+  .transform((v) => {
+    if (!v || onlyDigits(v).length === 0) return undefined;
+    return formatPhone(v);
+  });
+
+export function buildWhatsAppUrl(
+  phone: string | null | undefined,
+  message: string
+): string {
+  const digits = normalizeBrazilianPhoneDigits(phone ?? '');
+  const hasValidBrNumber = digits.length === 10 || digits.length === 11;
+  return hasValidBrNumber
+    ? `https://wa.me/55${digits}?text=${encodeURIComponent(message)}`
+    : `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
 
 export function formatCEP(val: string): string {
@@ -88,7 +131,7 @@ export const companySettingsSchema = z.object({
     .trim()
     .optional()
     .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), 'Informe um e-mail válido.'),
-  phone: z.string().trim().optional(),
+  phone: optionalBrazilianPhoneSchema,
   logo_url: z
     .string()
     .trim()
@@ -139,7 +182,7 @@ export const clientSchema = z.object({
     .trim()
     .optional()
     .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), 'Informe um e-mail válido.'),
-  phone: z.string().trim().optional(),
+  phone: optionalBrazilianPhoneSchema,
   notes: z.string().trim().optional(),
 });
 
@@ -152,7 +195,7 @@ export const clientUnitSchema = z.object({
   state: z.string().trim().length(2, 'Selecione a UF com 2 letras.'),
   postal_code: z.string().trim().optional(),
   contact_name: z.string().trim().optional(),
-  contact_phone: z.string().trim().optional(),
+  contact_phone: optionalBrazilianPhoneSchema,
   is_primary: z.boolean().default(false),
 });
 
@@ -183,7 +226,7 @@ export const technicianSchema = z.object({
     .trim()
     .optional()
     .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), 'Informe um e-mail válido.'),
-  phone: z.string().trim().optional(),
+  phone: optionalBrazilianPhoneSchema,
   document_cpf: z
     .string()
     .trim()

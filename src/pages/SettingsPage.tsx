@@ -355,8 +355,13 @@ export const SettingsPage: React.FC = () => {
                   />
                   <InputField
                     label="Telefone Comercial"
+                    type="tel"
+                    inputMode="tel"
+                    maxLength={20}
+                    placeholder="(11) 99999-9999"
                     value={phone}
                     onChange={(e) => setPhone(formatPhone(e.target.value))}
+                    error={brandErrors.phone}
                   />
                   <InputField
                     label="E-mail de Atendimento"

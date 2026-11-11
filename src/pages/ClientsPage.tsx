@@ -134,7 +134,7 @@ export const ClientsPage: React.FC = () => {
     setDocNumber(c.document_number ?? '');
     setContactName(c.contact_name ?? '');
     setEmail(c.email ?? '');
-    setPhone(c.phone ?? '');
+    setPhone(formatPhone(c.phone ?? ''));
     setNotes(c.notes ?? '');
     setClientErrors({});
     setClientSubmitErr(null);
@@ -207,7 +207,7 @@ export const ClientsPage: React.FC = () => {
     setStateUf('SP');
     setPostalCode('');
     setUnitContact(client.contact_name ?? '');
-    setUnitPhone(client.phone ?? '');
+    setUnitPhone(formatPhone(client.phone ?? ''));
     setIsPrimary(!(client.units && client.units.length > 0));
     setUnitErrors({});
     setUnitSubmitErr(null);
@@ -509,8 +509,13 @@ export const ClientsPage: React.FC = () => {
             />
             <InputField
               label="Telefone / WhatsApp"
+              type="tel"
+              inputMode="tel"
+              maxLength={20}
+              placeholder="(11) 99999-9999"
               value={phone}
               onChange={(e) => setPhone(formatPhone(e.target.value))}
+              error={clientErrors.phone}
             />
             <InputField
               label="E-mail"
@@ -624,8 +629,13 @@ export const ClientsPage: React.FC = () => {
             />
             <InputField
               label="Telefone da Unidade"
+              type="tel"
+              inputMode="tel"
+              maxLength={20}
+              placeholder="(11) 99999-9999"
               value={unitPhone}
               onChange={(e) => setUnitPhone(formatPhone(e.target.value))}
+              error={unitErrors.contact_phone}
             />
           </div>
 
