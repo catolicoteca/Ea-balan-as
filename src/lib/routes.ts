@@ -42,5 +42,5 @@ export function canAccessManagerAppArea(
     // Na Fase A, o Super Admin entra no /app para administrar empresas às quais tem vínculo legítimo (ex.: EA Balanças)
     return hasCompanyMembership;
   }
-  return effectiveRole === 'manager';
+  return effectiveRole === 'manager' || effectiveRole === 'administrator';
 }

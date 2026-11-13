@@ -135,6 +135,7 @@ export const RoleBadge: React.FC<{ role: EffectiveRole | null }> = ({ role }) =>
   const styles: Record<EffectiveRole, string> = {
     platform_admin: 'bg-indigo-500/20 text-indigo-100 border-indigo-400/30',
     manager: 'bg-teal-500/20 text-teal-100 border-teal-400/30',
+    administrator: 'bg-emerald-500/20 text-emerald-100 border-emerald-400/30',
     technician: 'bg-sky-500/20 text-sky-100 border-sky-400/30',
   };
   return (

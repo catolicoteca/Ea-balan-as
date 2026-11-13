@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, Mail, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, CheckCircle2, User } from 'lucide-react';
 import { supabase, supabaseConfigStatus } from '../lib/supabase';
 import { translateSupabaseError } from '../lib/errors';
 import { loginSchema, signUpSchema, zodErrorsToMap } from '../lib/validation';
@@ -11,11 +11,21 @@ import { AlertBanner } from '../components/ui/EmptyState';
 import { SchemaSetupBanner } from '../components/ui/SchemaSetupBanner';
 
 type AuthMode = 'login' | 'signup' | 'recovery';
+type LoginMethod = 'email' | 'identifier';
 
 export const AuthPage: React.FC = () => {
   const { schemaMissing, refreshTenantContext } = useAuthTenant();
 
   const [mode, setMode] = useState<AuthMode>('login');
+  const [loginMethod, setLoginMethod] = useState<LoginMethod>('email');
+  const [companyCode, setCompanyCode] = useState(() => {
+    try {
+      return localStorage.getItem('metrion_last_company_slug') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [username, setUsername] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -45,6 +55,67 @@ export const AuthPage: React.FC = () => {
     }
 
     if (mode === 'login') {
+      if (loginMethod === 'identifier') {
+        const cleanSlug = companyCode.trim().toLowerCase();
+        const cleanUser = username.trim().toLowerCase();
+
+        if (!cleanSlug) {
+          setFieldErrors({ companyCode: 'Informe o código da empresa.' });
+          return;
+        }
+        if (!cleanUser) {
+          setFieldErrors({ username: 'Informe seu identificador de usuário.' });
+          return;
+        }
+        if (!password) {
+          setFieldErrors({ password: 'A senha é obrigatória.' });
+          return;
+        }
+
+        setLoading(true);
+        try {
+          const { data: idRes, error: rpcErr } = await supabase.rpc('resolve_employee_identifier', {
+            p_company_slug: cleanSlug,
+            p_username: cleanUser,
+          });
+
+          if (rpcErr || !idRes || !idRes.found) {
+            setLoading(false);
+            setErrorMsg('Código da empresa, usuário ou senha incorretos.');
+            return;
+          }
+
+          if (idRes.is_active === false) {
+            setLoading(false);
+            setErrorMsg(idRes.error || 'Esta conta de colaborador foi desativada pela administração da empresa.');
+            return;
+          }
+
+          const { error: authErr } = await supabase.auth.signInWithPassword({
+            email: idRes.email,
+            password: password,
+          });
+
+          setLoading(false);
+
+          if (authErr) {
+            setErrorMsg('Código da empresa, usuário ou senha incorretos.');
+            return;
+          }
+
+          try {
+            localStorage.setItem('metrion_last_company_slug', cleanSlug);
+          } catch {
+            // ignore
+          }
+        } catch (err: any) {
+          setLoading(false);
+          setErrorMsg(translateSupabaseError(err));
+        }
+        return;
+      }
+
+      // Login tradicional por e-mail corporativo
       const parsed = loginSchema.safeParse({ email, password });
       if (!parsed.success) {
         setFieldErrors(zodErrorsToMap(parsed.error));
@@ -198,13 +269,52 @@ export const AuthPage: React.FC = () => {
               </h2>
               <p className="text-xs text-slate-500 mt-1">
                 {mode === 'login' &&
-                  'Entre com seu e-mail corporativo e senha cadastrados para acessar sua empresa.'}
+                  (loginMethod === 'email'
+                    ? 'Entre com seu e-mail corporativo e senha cadastrados.'
+                    : 'Acesso rápido para funcionários sem necessidade de e-mail pessoal.')}
                 {mode === 'signup' &&
                   'Cadastre seu usuário. O primeiro acesso inicializa sua empresa no Metrion; demais usuários recebem vínculo por convite.'}
                 {mode === 'recovery' &&
                   'Enviaremos um link seguro de redefinição para o seu e-mail.'}
               </p>
             </div>
+
+            {mode === 'login' && (
+              <div className="flex rounded-lg bg-slate-100 p-1 text-xs font-medium">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginMethod('email');
+                    setFieldErrors({});
+                    setErrorMsg(null);
+                  }}
+                  className={`flex-1 py-1.5 rounded-md flex items-center justify-center gap-1.5 transition-colors ${
+                    loginMethod === 'email'
+                      ? 'bg-white text-slate-900 shadow-sm font-semibold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  E-mail Corporativo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginMethod('identifier');
+                    setFieldErrors({});
+                    setErrorMsg(null);
+                  }}
+                  className={`flex-1 py-1.5 rounded-md flex items-center justify-center gap-1.5 transition-colors ${
+                    loginMethod === 'identifier'
+                      ? 'bg-white text-slate-900 shadow-sm font-semibold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5" />
+                  Usuário da Empresa
+                </button>
+              </div>
+            )}
 
             {!supabaseConfigStatus.valid && (
               <AlertBanner
@@ -229,16 +339,37 @@ export const AuthPage: React.FC = () => {
                 />
               )}
 
-              <InputField
-                label="E-mail Corporativo"
-                type="email"
-                required
-                autoComplete="email"
-                placeholder="voce@suaempresa.com.br"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                error={fieldErrors.email}
-              />
+              {mode === 'login' && loginMethod === 'identifier' ? (
+                <>
+                  <InputField
+                    label="Código / Sigla da Empresa"
+                    required
+                    placeholder="Ex.: ea-balancas"
+                    value={companyCode}
+                    onChange={(e) => setCompanyCode(e.target.value)}
+                    error={fieldErrors.companyCode}
+                  />
+                  <InputField
+                    label="Identificador do Funcionário"
+                    required
+                    placeholder="Ex.: carlos.silva"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    error={fieldErrors.username}
+                  />
+                </>
+              ) : (
+                <InputField
+                  label="E-mail Corporativo"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  placeholder="voce@suaempresa.com.br"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  error={fieldErrors.email}
+                />
+              )}
 
               {mode !== 'recovery' && (
                 <InputField
@@ -271,7 +402,13 @@ export const AuthPage: React.FC = () => {
                 size="lg"
                 isLoading={loading}
                 className="w-full"
-                leftIcon={<Mail className="w-4 h-4" />}
+                leftIcon={
+                  mode === 'login' && loginMethod === 'identifier' ? (
+                    <User className="w-4 h-4" />
+                  ) : (
+                    <Mail className="w-4 h-4" />
+                  )
+                }
               >
                 {mode === 'login' && 'Entrar no Sistema'}
                 {mode === 'signup' && 'Cadastrar Usuário'}

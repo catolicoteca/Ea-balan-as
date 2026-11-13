@@ -22,11 +22,14 @@ import { BrandLogo } from '../ui/BrandLogo';
 import { RoleBadge } from '../ui/Badge';
 import { GlobalSearchBar } from './GlobalSearchBar';
 
+import type { RolePermissions } from '../../lib/permissions';
+
 interface NavItem {
   to: string;
   label: string;
   icon: React.ReactNode;
   allowTechnician: boolean;
+  requiredPermission?: keyof RolePermissions;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -50,9 +53,10 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     to: '/app/tecnicos',
-    label: 'Técnicos',
+    label: 'Técnicos & Acessos',
     icon: <Wrench className="w-4 h-4" />,
     allowTechnician: false,
+    requiredPermission: 'canManageTechnicians',
   },
   {
     to: '/app/ordens-de-servico',
@@ -77,12 +81,14 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Relatórios',
     icon: <BarChart3 className="w-4 h-4" />,
     allowTechnician: false,
+    requiredPermission: 'canViewReports',
   },
   {
     to: '/app/configuracoes',
     label: 'Configurações',
     icon: <Settings className="w-4 h-4" />,
     allowTechnician: false,
+    requiredPermission: 'canManageCompanySettings',
   },
 ];
 
@@ -95,6 +101,7 @@ export const AppShell: React.FC = () => {
     isPlatformAdmin,
     activeCompany,
     effectiveRole,
+    permissions,
     selectCompany,
     signOut,
   } = useAuthTenant();
@@ -106,9 +113,11 @@ export const AppShell: React.FC = () => {
     memberships.some((m) => m.company_id === c.id && m.is_active)
   );
 
-  const visibleNavItems = NAV_ITEMS.filter(
-    (item) => effectiveRole !== 'technician' || item.allowTechnician
-  );
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (effectiveRole === 'technician' && !item.allowTechnician) return false;
+    if (item.requiredPermission && !permissions[item.requiredPermission]) return false;
+    return true;
+  });
 
   const sidebarBg = activeCompany?.sidebar_color || '#0B2545';
   const primaryColor = activeCompany?.primary_color || '#0D9488';

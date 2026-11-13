@@ -11,6 +11,8 @@ export interface RolePermissions {
   canViewReports: boolean;
   canManagePriceCatalog: boolean;
   canApproveOrderItems: boolean;
+  canManageStock: boolean;
+  canManageFinance: boolean;
 }
 
 export function getPermissionsForRole(role: EffectiveRole | null): RolePermissions {
@@ -26,6 +28,8 @@ export function getPermissionsForRole(role: EffectiveRole | null): RolePermissio
       canViewReports: true,
       canManagePriceCatalog: true,
       canApproveOrderItems: true,
+      canManageStock: true,
+      canManageFinance: true,
     };
   }
 
@@ -41,6 +45,25 @@ export function getPermissionsForRole(role: EffectiveRole | null): RolePermissio
       canViewReports: true,
       canManagePriceCatalog: true,
       canApproveOrderItems: true,
+      canManageStock: true,
+      canManageFinance: true,
+    };
+  }
+
+  if (role === 'administrator') {
+    return {
+      canManagePlatformCompanies: false,
+      canManageCompanySettings: false, // Bloqueado de alterar dados fiscais/legais ou excluir empresa
+      canManageClients: true,
+      canManageEquipments: true,
+      canManageTechnicians: false, // Apenas Gestor gerencia equipe e acessos
+      canCreateServiceOrder: true,
+      canAssignTechnicians: true,
+      canViewReports: true,
+      canManagePriceCatalog: false, // Catálogo oficial é de responsabilidade do Gestor
+      canApproveOrderItems: true,
+      canManageStock: true,
+      canManageFinance: true,
     };
   }
 
@@ -56,11 +79,14 @@ export function getPermissionsForRole(role: EffectiveRole | null): RolePermissio
     canViewReports: false,
     canManagePriceCatalog: false,
     canApproveOrderItems: false,
+    canManageStock: false,
+    canManageFinance: false,
   };
 }
 
 export const ROLE_LABELS: Record<EffectiveRole, string> = {
   platform_admin: 'Administrador da Plataforma',
   manager: 'Gestor da Empresa',
+  administrator: 'Administrador Operacional',
   technician: 'Técnico de Campo',
 };

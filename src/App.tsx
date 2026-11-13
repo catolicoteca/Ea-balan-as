@@ -10,6 +10,7 @@ import {
 import { PlatformShell } from './components/layout/PlatformShell';
 import { AppShell } from './components/layout/AppShell';
 import { TechnicianShell } from './components/layout/TechnicianShell';
+import { MustChangePasswordModal } from './components/modals/MustChangePasswordModal';
 import { AuthPage } from './pages/AuthPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { ActivateAccountPage } from './pages/ActivateAccountPage';
@@ -31,6 +32,7 @@ const AppRoutes: React.FC = () => {
   const location = useLocation();
   const {
     user,
+    profile,
     isLoading,
     schemaMissing,
     isPlatformAdmin,
@@ -38,6 +40,7 @@ const AppRoutes: React.FC = () => {
     memberships,
     activeCompany,
     effectiveRole,
+    refreshTenantContext,
   } = useAuthTenant();
 
   // Rota pública de ativação de convite de técnico
@@ -83,7 +86,11 @@ const AppRoutes: React.FC = () => {
   );
 
   return (
-    <Routes>
+    <>
+      {profile?.must_change_password && (
+        <MustChangePasswordModal onSuccess={refreshTenantContext} />
+      )}
+      <Routes>
       {/* Raiz redireciona sempre para o ambiente padrão do perfil */}
       <Route path="/" element={<Navigate to={defaultHome} replace />} />
 
@@ -233,6 +240,7 @@ const AppRoutes: React.FC = () => {
       {/* Fallback Global */}
       <Route path="*" element={<Navigate to={defaultHome} replace />} />
     </Routes>
+    </>
   );
 };
 

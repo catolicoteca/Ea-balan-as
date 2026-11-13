@@ -6,6 +6,9 @@ import {
   RotateCcw,
   Plus,
   CheckCircle2,
+  KeyRound,
+  UserX,
+  UserCheck,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
@@ -24,11 +27,17 @@ import type {
   CompanyInvitation,
   CompanyMembership,
 } from '../types/database';
+import {
+  createEmployeeAccount,
+  resetEmployeePassword,
+  toggleEmployeeStatus,
+} from '../lib/employeeAdmin';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { BrandLogo } from '../components/ui/BrandLogo';
 import { InputField, SelectField } from '../components/ui/FormField';
 import { AlertBanner } from '../components/ui/EmptyState';
+import { Modal } from '../components/ui/Modal';
 
 type SettingsTab = 'branding' | 'team';
 
@@ -73,6 +82,23 @@ export const SettingsPage: React.FC = () => {
     text: string;
   } | null>(null);
 
+  // Estados para Gestão Direta de Colaboradores (Identificador & Senha)
+  const [empModalOpen, setEmpModalOpen] = useState(false);
+  const [empName, setEmpName] = useState('');
+  const [empUsername, setEmpUsername] = useState('');
+  const [empRole, setEmpRole] = useState<'administrator' | 'technician'>('technician');
+  const [empTempPassword, setEmpTempPassword] = useState('');
+  const [empPhone, setEmpPhone] = useState('');
+  const [savingEmp, setSavingEmp] = useState(false);
+  const [empError, setEmpError] = useState<string | null>(null);
+
+  // Estados para Redefinição de Senha
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetTargetUser, setResetTargetUser] = useState<CompanyMembership | null>(null);
+  const [newTempPassword, setNewTempPassword] = useState('');
+  const [savingReset, setSavingReset] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!activeCompany) return;
     setName(activeCompany.name);
@@ -113,6 +139,103 @@ export const SettingsPage: React.FC = () => {
       void loadTeamData();
     }
   }, [tab, loadTeamData]);
+
+  const handleCreateEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeCompany) return;
+    setEmpError(null);
+
+    if (!empName.trim() || empName.trim().length < 3) {
+      setEmpError('Informe o nome completo do colaborador (mínimo 3 caracteres).');
+      return;
+    }
+    if (!empUsername.trim() || !/^[a-z0-9_.-]{3,30}$/.test(empUsername.trim().toLowerCase())) {
+      setEmpError('Identificador inválido: utilize de 3 a 30 caracteres alfanuméricos, pontos, traços ou sublinhados.');
+      return;
+    }
+    if (empTempPassword.length < 8) {
+      setEmpError('A senha provisória deve conter no mínimo 8 caracteres.');
+      return;
+    }
+
+    setSavingEmp(true);
+    try {
+      const res = await createEmployeeAccount({
+        companyId: activeCompany.id,
+        fullName: empName.trim(),
+        username: empUsername.trim().toLowerCase(),
+        role: empRole,
+        tempPassword: empTempPassword,
+        phone: empPhone.trim() || undefined,
+      });
+
+      setEmpModalOpen(false);
+      setEmpName('');
+      setEmpUsername('');
+      setEmpTempPassword('');
+      setEmpPhone('');
+      setTeamMsg({
+        type: 'success',
+        text: `Colaborador @${res.user.username} cadastrado com sucesso! Acesso concedido como ${
+          res.user.role === 'administrator' ? 'Administrador' : 'Técnico'
+        }. Troca de senha obrigatória exigida no primeiro login.`,
+      });
+      await loadTeamData();
+    } catch (err: any) {
+      setEmpError(err?.message || 'Falha ao criar colaborador.');
+    } finally {
+      setSavingEmp(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeCompany || !resetTargetUser) return;
+    setResetError(null);
+
+    if (newTempPassword.length < 8) {
+      setResetError('A nova senha provisória deve conter no mínimo 8 caracteres.');
+      return;
+    }
+
+    setSavingReset(true);
+    try {
+      await resetEmployeePassword(activeCompany.id, resetTargetUser.user_id, newTempPassword);
+      setResetModalOpen(false);
+      setNewTempPassword('');
+      setTeamMsg({
+        type: 'success',
+        text: `Senha provisória redefinida com sucesso para ${
+          resetTargetUser.profile?.full_name || 'o colaborador'
+        }! A troca de senha será exigida no próximo login.`,
+      });
+      await loadTeamData();
+    } catch (err: any) {
+      setResetError(err?.message || 'Falha ao redefinir senha.');
+    } finally {
+      setSavingReset(false);
+    }
+  };
+
+  const handleToggleStatus = async (m: CompanyMembership) => {
+    if (!activeCompany) return;
+    const actionLabel = m.is_active ? 'desativar' : 'reativar';
+    const confirmed = window.confirm(
+      `Deseja realmente ${actionLabel} o acesso de "${m.profile?.full_name || 'este colaborador'}"?`
+    );
+    if (!confirmed) return;
+
+    try {
+      await toggleEmployeeStatus(activeCompany.id, m.user_id, !m.is_active);
+      setTeamMsg({
+        type: 'success',
+        text: `Acesso do colaborador ${m.is_active ? 'desativado' : 'reativado'} com sucesso.`,
+      });
+      await loadTeamData();
+    } catch (err: any) {
+      setTeamMsg({ type: 'error', text: err?.message || 'Falha ao alterar status.' });
+    }
+  };
 
   const handleLogoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -608,8 +731,11 @@ export const SettingsPage: React.FC = () => {
                   <option value="technician">
                     Técnico (acesso restrito às OS atribuídas a ele)
                   </option>
+                  <option value="administrator">
+                    Administrador (operações, estoque, financeiro e aprovação de OS)
+                  </option>
                   <option value="manager">
-                    Gestor (administração completa da empresa)
+                    Gestor (administração completa e configurações da empresa)
                   </option>
                 </SelectField>
 
@@ -629,6 +755,18 @@ export const SettingsPage: React.FC = () => {
             <Card
               title={`Usuários Vinculados (${teamMembers.length})`}
               subtitle="Vínculos ativos em public.company_memberships validados por RLS"
+              actions={
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setEmpError(null);
+                    setEmpModalOpen(true);
+                  }}
+                  leftIcon={<Plus className="w-4 h-4" />}
+                >
+                  Novo Acesso Direto (Usuário/Senha)
+                </Button>
+              }
             >
               {teamMembers.length === 0 ? (
                 <p className="text-xs text-slate-500">
@@ -639,17 +777,70 @@ export const SettingsPage: React.FC = () => {
                   {teamMembers.map((m) => (
                     <div
                       key={m.id}
-                      className="py-3 flex items-center justify-between gap-3"
+                      className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                     >
-                      <div>
-                        <div className="font-semibold text-slate-900">
-                          {m.profile?.full_name || 'Usuário'}
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-900">
+                            {m.profile?.full_name || 'Usuário'}
+                          </span>
+                          {m.username && (
+                            <span className="font-mono text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded text-[11px] font-semibold border border-teal-200">
+                              @{m.username}
+                            </span>
+                          )}
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                              m.is_active
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-red-50 text-red-700 border border-red-200'
+                            }`}
+                          >
+                            {m.is_active ? 'Ativo' : 'Bloqueado'}
+                          </span>
                         </div>
                         <div className="text-slate-500">{m.profile?.email}</div>
                       </div>
-                      <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 font-medium">
-                        {m.role === 'manager' ? 'Gestor' : 'Técnico'}
-                      </span>
+
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 font-medium">
+                          {m.role === 'manager'
+                            ? 'Gestor'
+                            : m.role === 'administrator'
+                            ? 'Administrador'
+                            : 'Técnico'}
+                        </span>
+
+                        {user?.id !== m.user_id && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setResetTargetUser(m);
+                                setNewTempPassword('');
+                                setResetError(null);
+                                setResetModalOpen(true);
+                              }}
+                              title="Redefinir Senha Provisória"
+                              className="p-1.5 text-slate-500 hover:text-teal-700 hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                              <KeyRound className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleStatus(m)}
+                              title={m.is_active ? 'Bloquear Acesso' : 'Reativar Acesso'}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                m.is_active
+                                  ? 'text-slate-500 hover:text-red-700 hover:bg-red-50'
+                                  : 'text-emerald-600 hover:bg-emerald-50'
+                              }`}
+                            >
+                              {m.is_active ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -676,7 +867,7 @@ export const SettingsPage: React.FC = () => {
                           {inv.email}
                         </span>{' '}
                         <span className="text-slate-500">
-                          ({inv.role === 'manager' ? 'Gestor' : 'Técnico'})
+                          ({inv.role === 'manager' ? 'Gestor' : inv.role === 'administrator' ? 'Administrador' : 'Técnico'})
                         </span>
                       </div>
                       <span
@@ -696,6 +887,111 @@ export const SettingsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* MODAL: NOVO ACESSO DIRETO POR IDENTIFICADOR & SENHA */}
+      <Modal
+        isOpen={empModalOpen}
+        onClose={() => setEmpModalOpen(false)}
+        title="Cadastrar Novo Colaborador (Acesso Direto)"
+        subtitle="Crie o login com identificador e senha provisória sem exigir e-mail pessoal"
+      >
+        <form onSubmit={handleCreateEmployee} className="space-y-4">
+          {empError && <AlertBanner variant="error" message={empError} />}
+
+          <InputField
+            label="Nome Completo"
+            required
+            placeholder="Ex.: Carlos Silva"
+            value={empName}
+            onChange={(e) => setEmpName(e.target.value)}
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <InputField
+              label="Identificador de Usuário (Username)"
+              required
+              placeholder="Ex.: carlos.silva"
+              value={empUsername}
+              onChange={(e) => setEmpUsername(e.target.value.toLowerCase().trim())}
+            />
+
+            <SelectField
+              label="Perfil de Acesso"
+              value={empRole}
+              onChange={(e) => setEmpRole(e.target.value as 'administrator' | 'technician')}
+            >
+              <option value="technician">Técnico de Campo</option>
+              <option value="administrator">Administrador Operacional</option>
+            </SelectField>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <InputField
+              label="Senha Provisória"
+              type="password"
+              required
+              placeholder="Mínimo 8 caracteres"
+              value={empTempPassword}
+              onChange={(e) => setEmpTempPassword(e.target.value)}
+            />
+
+            <InputField
+              label="Telefone / WhatsApp (Opcional)"
+              type="tel"
+              placeholder="(11) 99999-9999"
+              value={empPhone}
+              onChange={(e) => setEmpPhone(formatPhone(e.target.value))}
+            />
+          </div>
+
+          <p className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+            A senha provisória será criptografada no Supabase Auth. No primeiro acesso, o colaborador será obrigado a definir sua senha pessoal.
+          </p>
+
+          <div className="pt-2 flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setEmpModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" isLoading={savingEmp} leftIcon={<CheckCircle2 className="w-4 h-4" />}>
+              Criar Acesso do Colaborador
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* MODAL: REDEFINIR SENHA PROVISÓRIA */}
+      <Modal
+        isOpen={resetModalOpen}
+        onClose={() => setResetModalOpen(false)}
+        title="Redefinir Senha do Colaborador"
+        subtitle={`Defina uma nova senha provisória para ${resetTargetUser?.profile?.full_name || 'o colaborador'}`}
+      >
+        <form onSubmit={handleResetPassword} className="space-y-4">
+          {resetError && <AlertBanner variant="error" message={resetError} />}
+
+          <InputField
+            label="Nova Senha Provisória"
+            type="password"
+            required
+            placeholder="Mínimo 8 caracteres"
+            value={newTempPassword}
+            onChange={(e) => setNewTempPassword(e.target.value)}
+          />
+
+          <p className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+            A nova senha provisória exigirá a troca imediata no próximo login do colaborador.
+          </p>
+
+          <div className="pt-2 flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setResetModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" isLoading={savingReset} leftIcon={<KeyRound className="w-4 h-4" />}>
+              Redefinir Senha
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

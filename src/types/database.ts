@@ -1,5 +1,5 @@
-export type AppRole = 'manager' | 'technician';
-export type EffectiveRole = 'platform_admin' | 'manager' | 'technician';
+export type AppRole = 'manager' | 'administrator' | 'technician';
+export type EffectiveRole = 'platform_admin' | 'manager' | 'administrator' | 'technician';
 
 export type OSStatus =
   | 'open'
@@ -48,6 +48,7 @@ export interface UserProfile {
   phone: string | null;
   avatar_url: string | null;
   default_company_id: string | null;
+  must_change_password?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -57,6 +58,7 @@ export interface CompanyMembership {
   company_id: string;
   user_id: string;
   role: AppRole;
+  username?: string | null;
   is_active: boolean;
   invited_by: string | null;
   created_at: string;
