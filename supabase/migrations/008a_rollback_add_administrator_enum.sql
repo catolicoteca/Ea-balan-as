@@ -1,0 +1,23 @@
+-- ============================================================================
+-- Metrion SaaS — Assistência Técnica Profissional
+-- Rollback 008a: Informações de reversão do enum app_role
+-- ============================================================================
+-- No PostgreSQL nativo, não existe o comando "ALTER TYPE ... DROP VALUE".
+-- Uma vez adicionado ao catálogo pg_enum, o rótulo 'administrator' permanece
+-- dormente no tipo. Como o rollback 008b remove todas as referências ao valor
+-- nas tabelas, funções e políticas, a permanência do rótulo é inócua.
+--
+-- Caso seja estritamente necessário expurgar o rótulo do catálogo pg_enum,
+-- o procedimento manual seguro de recriação do tipo é:
+--
+-- 1. CREATE TYPE public.app_role_clean AS ENUM ('manager', 'technician');
+-- 2. ALTER TABLE public.company_memberships
+--      ALTER COLUMN role TYPE public.app_role_clean
+--      USING (role::text::public.app_role_clean);
+-- 3. ALTER TABLE public.company_invitations
+--      ALTER COLUMN role TYPE public.app_role_clean
+--      USING (role::text::public.app_role_clean);
+-- 4. DROP TYPE public.app_role;
+-- 5. ALTER TYPE public.app_role_clean RENAME TO app_role;
+-- ============================================================================
+SELECT 'Rollback 008a: Rótulo de enum neutralizado com segurança' AS status;

@@ -1,17 +1,14 @@
 -- ============================================================================
 -- Metrion SaaS — Assistência Técnica Profissional
--- Migração 008: 4º Perfil (Administrator), Sessão de Suporte Auditada e
---               Autenticação Segura por Identificador sem E-mail Pessoal
+-- Migração 008b: 4º Perfil (Administrator), Estruturas, Funções Seguras,
+--                Sessão de Suporte Auditada e RLS sem COMMITs embutidos
+-- ============================================================================
+-- PRÉ-REQUISITO: Execução prévia da migração 008a (enum app_role).
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- 1. ADICIONAR O VALOR 'administrator' AO ENUM app_role E CAMPOS BÁSICOS
+-- 1. CAMPOS DE AUTENTICAÇÃO POR IDENTIFICADOR E TROCA DE SENHA
 -- ----------------------------------------------------------------------------
--- No PostgreSQL, ALTER TYPE ... ADD VALUE precisa comitar antes de ser utilizado
--- como literal em funções ou consultas subsequentes.
-ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'administrator';
-COMMIT;
-
 -- Flag de troca obrigatória de senha no perfil
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS must_change_password boolean NOT NULL DEFAULT false;
@@ -77,8 +74,7 @@ $$;
 -- ----------------------------------------------------------------------------
 -- 3. REFINAMENTO DAS FUNÇÕES DE AUTORIZAÇÃO (REMOVENDO BYPASS DO SUPER ADMIN)
 -- ----------------------------------------------------------------------------
--- Membro ativo: apenas usuário vinculado via company_memberships ou sessão de suporte
--- Usuários com troca de senha pendente têm acesso operacional bloqueado no banco até definirem a nova senha
+-- Membro ativo: apenas usuário com vínculo ativo (is_active = true) e sem pendência de troca de senha
 CREATE OR REPLACE FUNCTION public.is_company_member(p_company_id uuid)
 RETURNS boolean
 LANGUAGE sql
@@ -99,7 +95,7 @@ AS $$
   );
 $$;
 
--- Gestor ativo: apenas gestor vinculado ou suporte auditado
+-- Gestor ativo: apenas gestor com vínculo ativo (is_active = true) e sem pendência de troca de senha
 CREATE OR REPLACE FUNCTION public.is_company_manager(p_company_id uuid)
 RETURNS boolean
 LANGUAGE sql
@@ -141,6 +137,43 @@ AS $$
        AND c.is_active = true
        AND coalesce(p.must_change_password, false) = false
   );
+$$;
+
+-- Regra central de visualização de Ordem de Serviço atualizada com 4º perfil
+CREATE OR REPLACE FUNCTION public.can_access_service_order(p_os_id uuid, p_company_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    public.is_company_admin_or_manager(p_company_id)
+    OR (
+      public.is_company_member(p_company_id)
+      AND EXISTS (
+        SELECT 1
+          FROM public.service_orders so
+         WHERE so.id = p_os_id
+           AND so.company_id = p_company_id
+           AND (
+             public.technician_has_company_os_override(p_company_id)
+             OR (
+               so.allow_company_technicians_view = true
+               AND public.current_technician_id(p_company_id) IS NOT NULL
+             )
+             OR so.primary_technician_id = public.current_technician_id(p_company_id)
+             OR EXISTS (
+               SELECT 1
+                 FROM public.service_order_assignments soa
+                WHERE soa.service_order_id = so.id
+                  AND soa.company_id = soa.company_id
+                  AND soa.technician_id = public.current_technician_id(p_company_id)
+                  AND soa.is_active = true
+             )
+           )
+      )
+    );
 $$;
 
 -- Funções de visualização atualizadas para Administrador e Gestor
@@ -202,41 +235,6 @@ AS $$
          AND public.can_access_service_order(so.id, p_company_id)
     );
 $$;
-CREATE OR REPLACE FUNCTION public.can_access_service_order(p_os_id uuid, p_company_id uuid)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT
-    public.is_company_admin_or_manager(p_company_id)
-    OR (
-      public.is_company_member(p_company_id)
-      AND EXISTS (
-        SELECT 1
-          FROM public.service_orders so
-         WHERE so.id = p_os_id
-           AND so.company_id = p_company_id
-           AND (
-             public.technician_has_company_os_override(p_company_id)
-             OR (
-               so.allow_company_technicians_view = true
-               AND public.current_technician_id(p_company_id) IS NOT NULL
-             )
-             OR so.primary_technician_id = public.current_technician_id(p_company_id)
-             OR EXISTS (
-               SELECT 1
-                 FROM public.service_order_assignments soa
-                WHERE soa.service_order_id = so.id
-                  AND soa.company_id = soa.company_id
-                  AND soa.technician_id = public.current_technician_id(p_company_id)
-                  AND soa.is_active = true
-             )
-           )
-      )
-    );
-$$;
 
 -- ----------------------------------------------------------------------------
 -- 4. RESOLUÇÃO SEGURA DE IDENTIFICADOR (SEM VAZAMENTO OU ENUMERAÇÃO)
@@ -296,10 +294,10 @@ $$;
 GRANT EXECUTE ON FUNCTION public.resolve_employee_identifier(text, text) TO anon, authenticated;
 
 -- ----------------------------------------------------------------------------
--- 6. ATUALIZAÇÃO DAS POLÍTICAS DE RLS PARA O PERFIL ADMINISTRATOR
+-- 5. ATUALIZAÇÃO DAS POLÍTICAS DE RLS PARA O PERFIL ADMINISTRATOR
 -- ----------------------------------------------------------------------------
 
--- 6.1 company_memberships:
+-- 5.1 company_memberships:
 -- Gestor gerencia (INSERT, UPDATE, DELETE). Administrador apenas visualiza os membros.
 DROP POLICY IF EXISTS memberships_insert_policy ON public.company_memberships;
 CREATE POLICY memberships_insert_policy ON public.company_memberships
@@ -317,7 +315,7 @@ CREATE POLICY memberships_delete_policy ON public.company_memberships
   FOR DELETE TO authenticated
   USING (public.is_company_manager(company_id));
 
--- 6.2 clients:
+-- 5.2 clients:
 -- Administrador e Gestor criam e atualizam; Gestor exclui; Técnico visualiza
 DROP POLICY IF EXISTS clients_insert_policy ON public.clients;
 CREATE POLICY clients_insert_policy ON public.clients
@@ -330,7 +328,7 @@ CREATE POLICY clients_update_policy ON public.clients
   USING (public.is_company_admin_or_manager(company_id))
   WITH CHECK (public.is_company_admin_or_manager(company_id));
 
--- 6.3 equipments:
+-- 5.3 equipments:
 -- Administrador e Gestor criam e atualizam; Gestor exclui; Técnico visualiza
 DROP POLICY IF EXISTS equipments_insert_policy ON public.equipments;
 CREATE POLICY equipments_insert_policy ON public.equipments
@@ -343,7 +341,7 @@ CREATE POLICY equipments_update_policy ON public.equipments
   USING (public.is_company_admin_or_manager(company_id))
   WITH CHECK (public.is_company_admin_or_manager(company_id));
 
--- 6.4 service_orders:
+-- 5.4 service_orders:
 -- Administrador e Gestor têm visão completa e criam ordens de serviço
 DROP POLICY IF EXISTS service_orders_select_policy ON public.service_orders;
 CREATE POLICY service_orders_select_policy ON public.service_orders
@@ -376,7 +374,7 @@ CREATE POLICY service_orders_update_policy ON public.service_orders
     )
   );
 
--- 6.5 service_order_items (Aprovação de itens autorizada para Gestor E Administrador)
+-- 5.5 service_order_items (Aprovação de itens autorizada para Gestor E Administrador)
 DROP POLICY IF EXISTS so_items_update_policy ON public.service_order_items;
 CREATE POLICY so_items_update_policy ON public.service_order_items
   FOR UPDATE TO authenticated
@@ -397,7 +395,7 @@ CREATE POLICY so_items_update_policy ON public.service_order_items
     )
   );
 
--- 6.6 platform_support_sessions: Apenas platform admin gerencia sessões de suporte
+-- 5.6 platform_support_sessions: Apenas platform admin gerencia sessões de suporte
 CREATE POLICY platform_support_select_policy ON public.platform_support_sessions
   FOR SELECT TO authenticated
   USING (platform_admin_id = auth.uid() OR public.is_platform_admin());
@@ -412,19 +410,35 @@ CREATE POLICY platform_support_update_policy ON public.platform_support_sessions
   WITH CHECK (platform_admin_id = auth.uid() AND public.is_platform_admin());
 
 -- ----------------------------------------------------------------------------
--- 7. FUNÇÃO SEGURA DE CONFIRMAÇÃO DE TROCA DE SENHA
+-- 6. FUNÇÃO SEGURA E INFALSIFICÁVEL DE CONFIRMAÇÃO DE TROCA DE SENHA
 -- ----------------------------------------------------------------------------
+-- Inspeciona auth.users para garantir que a credencial foi realmente atualizada
+-- nos últimos 5 minutos antes de liberar a remoção da flag must_change_password.
 CREATE OR REPLACE FUNCTION public.confirm_password_changed()
 RETURNS boolean
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = public, auth, pg_temp
 AS $$
+DECLARE
+  v_auth_updated_at timestamptz;
 BEGIN
+  -- Obtém a data/hora da última alteração real no Supabase Auth
+  SELECT updated_at INTO v_auth_updated_at
+    FROM auth.users
+   WHERE id = auth.uid();
+
+  -- Se o usuário tentar chamar esta função sem ter atualizado a senha no Supabase Auth,
+  -- a tentativa de contornar a troca de senha é abortada no kernel do banco de dados.
+  IF v_auth_updated_at IS NULL OR v_auth_updated_at < (now() - interval '5 minutes') THEN
+    RAISE EXCEPTION 'A troca de senha não foi detectada no sistema de autenticação. Atualize sua senha antes de confirmar.';
+  END IF;
+
   UPDATE public.profiles
      SET must_change_password = false,
          updated_at = now()
    WHERE id = auth.uid();
+
   RETURN true;
 END;
 $$;

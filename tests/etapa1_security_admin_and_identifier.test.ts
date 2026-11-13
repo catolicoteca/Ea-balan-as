@@ -62,7 +62,8 @@ describe('ETAPA 1 — 4º Perfil (Administrator), Isolamento Super Admin, e Aute
         email_confirmed_at timestamptz DEFAULT now(),
         confirmed_at timestamptz DEFAULT now(),
         raw_user_meta_data jsonb DEFAULT '{}'::jsonb,
-        created_at timestamptz DEFAULT now()
+        created_at timestamptz DEFAULT now(),
+        updated_at timestamptz DEFAULT now()
       );
 
       CREATE OR REPLACE FUNCTION auth.uid()
@@ -96,12 +97,9 @@ describe('ETAPA 1 — 4º Perfil (Administrator), Isolamento Super Admin, e Aute
     await db.exec(readFileSync(resolve('supabase/migrations/004_seed_real_price_catalog.sql'), 'utf-8'));
     await db.exec(readFileSync(resolve('supabase/migrations/005_technician_invitation_system.sql'), 'utf-8'));
 
-    // Executa a nova migração 008 (Etapa 1)
-    await db.exec(readFileSync(resolve('supabase/migrations/008_administrator_role_and_employee_auth.sql'), 'utf-8'));
-
-    // No PostgreSQL, após adicionar um novo valor de enum com ALTER TYPE,
-    // um COMMIT garante que o novo literal possa ser utilizado nas consultas seguintes
-    await db.exec('COMMIT;');
+    // Executa a nova migração 008 separada em 008a e 008b (Etapa 1)
+    await db.exec(readFileSync(resolve('supabase/migrations/008a_add_administrator_enum.sql'), 'utf-8'));
+    await db.exec(readFileSync(resolve('supabase/migrations/008b_administrator_and_employee_auth.sql'), 'utf-8'));
 
     // Empresa A (EA Balanças)
     const compA = await db.query<{ id: string }>(`SELECT id FROM public.companies WHERE slug = 'ea-balancas'`);
