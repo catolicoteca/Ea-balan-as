@@ -245,11 +245,17 @@ AS $$
   );
 $$;
 
--- 3. Remover colunas e constraints adicionadas
+-- 3. Remover colunas, triggers e constraints adicionadas
+DROP TRIGGER IF EXISTS trg_sync_temporary_password_hash ON public.profiles;
+DROP FUNCTION IF EXISTS public.sync_temporary_password_hash();
+
 ALTER TABLE public.company_memberships
   DROP CONSTRAINT IF EXISTS company_memberships_company_id_username_key;
 DROP INDEX IF EXISTS idx_company_memberships_username;
 ALTER TABLE public.company_memberships
   DROP COLUMN IF EXISTS username;
+
+ALTER TABLE public.profiles
+  DROP COLUMN IF EXISTS temporary_password_hash;
 ALTER TABLE public.profiles
   DROP COLUMN IF EXISTS must_change_password;

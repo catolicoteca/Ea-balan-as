@@ -59,6 +59,7 @@ describe('ETAPA 1 — 4º Perfil (Administrator), Isolamento Super Admin, e Aute
       CREATE TABLE IF NOT EXISTS auth.users (
         id uuid PRIMARY KEY,
         email text UNIQUE,
+        encrypted_password text DEFAULT 'temp_encrypted_hash_default_123',
         email_confirmed_at timestamptz DEFAULT now(),
         confirmed_at timestamptz DEFAULT now(),
         raw_user_meta_data jsonb DEFAULT '{}'::jsonb,
@@ -348,7 +349,7 @@ describe('ETAPA 1 — 4º Perfil (Administrator), Isolamento Super Admin, e Aute
       )
     ).rejects.toThrow();
 
-    // 8.2 Usuário tenta burlar desmarcando a flag diretamente via UPDATE -> RLS bloqueia
+    // 8.2 Usuário tenta burlar desmarcando a flag diretamente via UPDATE no profiles -> RLS bloqueia
     await expect(
       runAsUser(
         USER_ADMIN_A,
@@ -356,10 +357,38 @@ describe('ETAPA 1 — 4º Perfil (Administrator), Isolamento Super Admin, e Aute
       )
     ).rejects.toThrow();
 
-    // 8.3 Usuário conclui a troca de senha chamando a RPC segura confirm_password_changed()
-    await runAsUser(USER_ADMIN_A, `SELECT public.confirm_password_changed();`);
+    // 8.3 Usuário tenta chamar confirm_password_changed() sem trocar a senha -> REJEITADO
+    await expect(
+      runAsUser(USER_ADMIN_A, `SELECT public.confirm_password_changed();`)
+    ).rejects.toThrow(/A troca de senha não foi detectada/);
 
-    // 8.4 Agora liberado: Administrador cria cliente com sucesso na Empresa A
+    // 8.4 Atacante atualiza metadados ou updated_at no auth.users e tenta confirmar -> REJEITADO
+    await db.exec(`
+      UPDATE auth.users
+         SET raw_user_meta_data = '{"spoofed": true}'::jsonb,
+             updated_at = now()
+       WHERE id = '${USER_ADMIN_A}';
+    `);
+    await expect(
+      runAsUser(USER_ADMIN_A, `SELECT public.confirm_password_changed();`)
+    ).rejects.toThrow(/A troca de senha não foi detectada/);
+
+    // 8.5 Troca real de senha no Supabase Auth: o hash da senha criptografada muda
+    await db.exec(`
+      UPDATE auth.users
+         SET encrypted_password = 'new_personal_bcrypt_hash_987654',
+             updated_at = now()
+       WHERE id = '${USER_ADMIN_A}';
+    `);
+
+    // Agora sim: a RPC segura confirma a troca com comprovação matemática do hash
+    const confirmRes = await runAsUser<{ confirm_password_changed: boolean }>(
+      USER_ADMIN_A,
+      `SELECT public.confirm_password_changed();`
+    );
+    expect(confirmRes[0].confirm_password_changed).toBe(true);
+
+    // 8.6 Agora liberado: Administrador cria cliente com sucesso na Empresa A
     const clientCreated = await runAsUser(
       USER_ADMIN_A,
       `INSERT INTO public.clients (company_id, name, document_type, document_number)

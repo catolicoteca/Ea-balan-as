@@ -9,9 +9,39 @@
 -- ----------------------------------------------------------------------------
 -- 1. CAMPOS DE AUTENTICAÇÃO POR IDENTIFICADOR E TROCA DE SENHA
 -- ----------------------------------------------------------------------------
--- Flag de troca obrigatória de senha no perfil
+-- Flag de troca obrigatória de senha e hash da senha temporária para comprovação criptográfica
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS must_change_password boolean NOT NULL DEFAULT false;
+
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS temporary_password_hash text;
+
+-- Trigger para sincronizar o hash da senha temporária sempre que must_change_password for ativado
+CREATE OR REPLACE FUNCTION public.sync_temporary_password_hash()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+BEGIN
+  IF NEW.must_change_password = true THEN
+    SELECT md5(encrypted_password)
+      INTO NEW.temporary_password_hash
+      FROM auth.users
+     WHERE id = NEW.id;
+  ELSE
+    NEW.temporary_password_hash := NULL;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_sync_temporary_password_hash ON public.profiles;
+CREATE TRIGGER trg_sync_temporary_password_hash
+  BEFORE INSERT OR UPDATE OF must_change_password ON public.profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION public.sync_temporary_password_hash();
 
 -- Identificador (username) na associação da empresa
 ALTER TABLE public.company_memberships
@@ -412,8 +442,9 @@ CREATE POLICY platform_support_update_policy ON public.platform_support_sessions
 -- ----------------------------------------------------------------------------
 -- 6. FUNÇÃO SEGURA E INFALSIFICÁVEL DE CONFIRMAÇÃO DE TROCA DE SENHA
 -- ----------------------------------------------------------------------------
--- Inspeciona auth.users para garantir que a credencial foi realmente atualizada
--- nos últimos 5 minutos antes de liberar a remoção da flag must_change_password.
+-- Validação criptográfica rigorosa: não depende de updated_at (que pode ser
+-- alterado por metadados ou emails). Compara o hash de encrypted_password
+-- contra o temporary_password_hash salvo no perfil do usuário autenticado.
 CREATE OR REPLACE FUNCTION public.confirm_password_changed()
 RETURNS boolean
 LANGUAGE plpgsql
@@ -421,21 +452,39 @@ SECURITY DEFINER
 SET search_path = public, auth, pg_temp
 AS $$
 DECLARE
-  v_auth_updated_at timestamptz;
+  v_current_auth_hash text;
+  v_temp_hash text;
+  v_must_change boolean;
 BEGIN
-  -- Obtém a data/hora da última alteração real no Supabase Auth
-  SELECT updated_at INTO v_auth_updated_at
+  -- 1. Inspeciona o perfil do usuário autenticado
+  SELECT must_change_password, temporary_password_hash
+    INTO v_must_change, v_temp_hash
+    FROM public.profiles
+   WHERE id = auth.uid();
+
+  -- Se o usuário não possui pendência de troca de senha, retorna sucesso
+  IF NOT coalesce(v_must_change, false) THEN
+    RETURN true;
+  END IF;
+
+  -- 2. Obtém o hash da credencial no auth.users
+  SELECT md5(encrypted_password)
+    INTO v_current_auth_hash
     FROM auth.users
    WHERE id = auth.uid();
 
-  -- Se o usuário tentar chamar esta função sem ter atualizado a senha no Supabase Auth,
-  -- a tentativa de contornar a troca de senha é abortada no kernel do banco de dados.
-  IF v_auth_updated_at IS NULL OR v_auth_updated_at < (now() - interval '5 minutes') THEN
-    RAISE EXCEPTION 'A troca de senha não foi detectada no sistema de autenticação. Atualize sua senha antes de confirmar.';
+  -- 3. Comprovação inequívoca:
+  -- Se o hash de encrypted_password for idêntico ao gravado como temporário (ou nulo),
+  -- nenhuma alteração real de senha ocorreu. Atualizações de metadados ou perfil
+  -- não alteram o encrypted_password, falhando obrigatoriamente nesta checagem.
+  IF v_current_auth_hash IS NULL OR v_current_auth_hash = v_temp_hash THEN
+    RAISE EXCEPTION 'A troca de senha não foi detectada no sistema de autenticação. Defina uma nova senha pessoal diferente da temporária antes de prosseguir.';
   END IF;
 
+  -- 4. Troca de credencial confirmada: remove a flag e limpa o hash temporário
   UPDATE public.profiles
      SET must_change_password = false,
+         temporary_password_hash = NULL,
          updated_at = now()
    WHERE id = auth.uid();
 
@@ -445,7 +494,7 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.confirm_password_changed() TO authenticated;
 
--- Proteção no profiles: usuário comum não pode desmarcar must_change_password via UPDATE direto
+-- Proteção no profiles: usuário comum não pode desmarcar must_change_password nem manipular temporary_password_hash via UPDATE direto
 DROP POLICY IF EXISTS profiles_update_policy ON public.profiles;
 CREATE POLICY profiles_update_policy ON public.profiles
   FOR UPDATE TO authenticated
@@ -455,8 +504,9 @@ CREATE POLICY profiles_update_policy ON public.profiles
     OR (
       id = auth.uid()
       AND (
-        -- Impede o usuário de alterar must_change_password arbitrariamente via PostgREST
+        -- Impede o usuário de alterar must_change_password ou temporary_password_hash arbitrariamente via PostgREST
         must_change_password = (SELECT p.must_change_password FROM public.profiles p WHERE p.id = auth.uid())
+        AND temporary_password_hash IS NOT DISTINCT FROM (SELECT p.temporary_password_hash FROM public.profiles p WHERE p.id = auth.uid())
       )
     )
   );

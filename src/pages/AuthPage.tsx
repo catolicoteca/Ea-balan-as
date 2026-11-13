@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Lock, Mail, CheckCircle2, User } from 'lucide-react';
 import { supabase, supabaseConfigStatus } from '../lib/supabase';
 import { translateSupabaseError } from '../lib/errors';
@@ -35,6 +35,27 @@ export const AuthPage: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [, setFailedAttempts] = useState(0);
+  const [lockoutSeconds, setLockoutSeconds] = useState(0);
+
+  useEffect(() => {
+    if (lockoutSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setLockoutSeconds((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockoutSeconds]);
+
+  const registerFailedAttempt = () => {
+    setFailedAttempts((prev) => {
+      const next = prev + 1;
+      if (next >= 5) {
+        setLockoutSeconds(30);
+        return 0;
+      }
+      return next;
+    });
+  };
 
   const switchMode = (next: AuthMode) => {
     setMode(next);
@@ -45,6 +66,8 @@ export const AuthPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (lockoutSeconds > 0) return;
+
     setFieldErrors({});
     setErrorMsg(null);
     setSuccessMsg(null);
@@ -81,12 +104,14 @@ export const AuthPage: React.FC = () => {
 
           if (rpcErr || !idRes || !idRes.found) {
             setLoading(false);
+            registerFailedAttempt();
             setErrorMsg('Código da empresa, usuário ou senha incorretos.');
             return;
           }
 
           if (idRes.is_active === false) {
             setLoading(false);
+            registerFailedAttempt();
             setErrorMsg(idRes.error || 'Esta conta de colaborador foi desativada pela administração da empresa.');
             return;
           }
@@ -99,9 +124,12 @@ export const AuthPage: React.FC = () => {
           setLoading(false);
 
           if (authErr) {
+            registerFailedAttempt();
             setErrorMsg('Código da empresa, usuário ou senha incorretos.');
             return;
           }
+
+          setFailedAttempts(0);
 
           try {
             localStorage.setItem('metrion_last_company_slug', cleanSlug);
@@ -110,6 +138,7 @@ export const AuthPage: React.FC = () => {
           }
         } catch (err: any) {
           setLoading(false);
+          registerFailedAttempt();
           setErrorMsg(translateSupabaseError(err));
         }
         return;
@@ -324,6 +353,13 @@ export const AuthPage: React.FC = () => {
               />
             )}
 
+            {lockoutSeconds > 0 && (
+              <AlertBanner
+                variant="error"
+                title="Muitas tentativas sem sucesso"
+                message={`Por motivos de proteção contra força bruta, aguarde ${lockoutSeconds} segundos antes de tentar novamente.`}
+              />
+            )}
             {errorMsg && <AlertBanner variant="error" message={errorMsg} />}
             {successMsg && <AlertBanner variant="success" message={successMsg} />}
 
@@ -401,6 +437,7 @@ export const AuthPage: React.FC = () => {
                 type="submit"
                 size="lg"
                 isLoading={loading}
+                disabled={lockoutSeconds > 0}
                 className="w-full"
                 leftIcon={
                   mode === 'login' && loginMethod === 'identifier' ? (

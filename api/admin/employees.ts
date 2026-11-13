@@ -3,11 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 
 // Obtenção segura das variáveis de ambiente no servidor
 function getSupabaseAdmin() {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Configuração de servidor incompleta: SUPABASE_SERVICE_ROLE_KEY ausente.');
+    throw new Error('Configuração de servidor incompleta: defina SUPABASE_URL (ou VITE_SUPABASE_URL) e SUPABASE_SERVICE_ROLE_KEY.');
   }
 
   return createClient(supabaseUrl, serviceRoleKey, {
@@ -19,11 +19,11 @@ function getSupabaseAdmin() {
 }
 
 function getSupabaseUserClient() {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !anonKey) {
-    throw new Error('Configuração de servidor incompleta: VITE_SUPABASE_ANON_KEY ausente.');
+    throw new Error('Configuração de servidor incompleta: defina SUPABASE_URL (ou VITE_SUPABASE_URL) e SUPABASE_ANON_KEY (ou VITE_SUPABASE_ANON_KEY).');
   }
 
   return createClient(supabaseUrl, anonKey, {
