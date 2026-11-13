@@ -99,13 +99,10 @@ export async function completePasswordChange(newPassword: string): Promise<void>
     throw new Error(authErr?.message || 'Falha ao atualizar a senha no Supabase Auth.');
   }
 
-  // Remove a flag de troca obrigatória no perfil
-  const { error: profErr } = await supabase
-    .from('profiles')
-    .update({ must_change_password: false })
-    .eq('id', user.id);
+  // Remove a flag de troca obrigatória no perfil via RPC de segurança no banco
+  const { error: rpcErr } = await supabase.rpc('confirm_password_changed');
 
-  if (profErr) {
-    throw new Error(`Senha atualizada, mas houve falha ao registrar o status do perfil: ${profErr.message}`);
+  if (rpcErr) {
+    throw new Error(`Senha atualizada, mas houve falha ao registrar o status do perfil: ${rpcErr.message}`);
   }
 }

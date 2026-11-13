@@ -341,7 +341,27 @@ describe('ETAPA 1 — 4º Perfil (Administrator), Isolamento Super Admin, e Aute
   });
 
   it('8. Permissões operacionais do Administrador: cria/atualiza clientes e OS, mas não pode alterar configurações fiscais da empresa', async () => {
-    // Administrador cria cliente com sucesso na Empresa A
+    // 8.1 Enquanto must_change_password for true, RLS bloqueia operações no banco
+    await expect(
+      runAsUser(
+        USER_ADMIN_A,
+        `INSERT INTO public.clients (company_id, name, document_type, document_number)
+         VALUES ('${companyAId}', 'Cliente Tentativa Bloqueada', 'CNPJ', '22.333.444/0001-55');`
+      )
+    ).rejects.toThrow();
+
+    // 8.2 Usuário tenta burlar desmarcando a flag diretamente via UPDATE -> RLS bloqueia
+    await expect(
+      runAsUser(
+        USER_ADMIN_A,
+        `UPDATE public.profiles SET must_change_password = false WHERE id = '${USER_ADMIN_A}';`
+      )
+    ).rejects.toThrow();
+
+    // 8.3 Usuário conclui a troca de senha chamando a RPC segura confirm_password_changed()
+    await runAsUser(USER_ADMIN_A, `SELECT public.confirm_password_changed();`);
+
+    // 8.4 Agora liberado: Administrador cria cliente com sucesso na Empresa A
     const clientCreated = await runAsUser(
       USER_ADMIN_A,
       `INSERT INTO public.clients (company_id, name, document_type, document_number)

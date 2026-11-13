@@ -5,12 +5,35 @@
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- 1. ADICIONAR O VALOR 'administrator' AO ENUM app_role
+-- 1. ADICIONAR O VALOR 'administrator' AO ENUM app_role E CAMPOS BÁSICOS
 -- ----------------------------------------------------------------------------
 -- No PostgreSQL, ALTER TYPE ... ADD VALUE precisa comitar antes de ser utilizado
 -- como literal em funções ou consultas subsequentes.
 ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'administrator';
 COMMIT;
+
+-- Flag de troca obrigatória de senha no perfil
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS must_change_password boolean NOT NULL DEFAULT false;
+
+-- Identificador (username) na associação da empresa
+ALTER TABLE public.company_memberships
+  ADD COLUMN IF NOT EXISTS username text;
+
+-- Restrição de formato e unicidade de username DENTRO da mesma empresa
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'company_memberships_company_id_username_key'
+  ) THEN
+    ALTER TABLE public.company_memberships
+      ADD CONSTRAINT company_memberships_company_id_username_key UNIQUE (company_id, username);
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_company_memberships_username
+  ON public.company_memberships (company_id, lower(username))
+  WHERE username IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- 2. SUPORTE AUDITADO DA PLATAFORMA (ISOLAMENTO MULTIEMPRESA ESTRITO)
@@ -55,6 +78,7 @@ $$;
 -- 3. REFINAMENTO DAS FUNÇÕES DE AUTORIZAÇÃO (REMOVENDO BYPASS DO SUPER ADMIN)
 -- ----------------------------------------------------------------------------
 -- Membro ativo: apenas usuário vinculado via company_memberships ou sessão de suporte
+-- Usuários com troca de senha pendente têm acesso operacional bloqueado no banco até definirem a nova senha
 CREATE OR REPLACE FUNCTION public.is_company_member(p_company_id uuid)
 RETURNS boolean
 LANGUAGE sql
@@ -66,10 +90,12 @@ AS $$
     SELECT 1
       FROM public.company_memberships cm
       JOIN public.companies c ON c.id = cm.company_id
+      LEFT JOIN public.profiles p ON p.id = cm.user_id
      WHERE cm.company_id = p_company_id
        AND cm.user_id = auth.uid()
        AND cm.is_active = true
        AND c.is_active = true
+       AND coalesce(p.must_change_password, false) = false
   );
 $$;
 
@@ -85,11 +111,13 @@ AS $$
     SELECT 1
       FROM public.company_memberships cm
       JOIN public.companies c ON c.id = cm.company_id
+      LEFT JOIN public.profiles p ON p.id = cm.user_id
      WHERE cm.company_id = p_company_id
        AND cm.user_id = auth.uid()
        AND cm.role = 'manager'
        AND cm.is_active = true
        AND c.is_active = true
+       AND coalesce(p.must_change_password, false) = false
   );
 $$;
 
@@ -105,11 +133,13 @@ AS $$
     SELECT 1
       FROM public.company_memberships cm
       JOIN public.companies c ON c.id = cm.company_id
+      LEFT JOIN public.profiles p ON p.id = cm.user_id
      WHERE cm.company_id = p_company_id
        AND cm.user_id = auth.uid()
        AND cm.role IN ('manager', 'administrator')
        AND cm.is_active = true
        AND c.is_active = true
+       AND coalesce(p.must_change_password, false) = false
   );
 $$;
 
@@ -209,33 +239,7 @@ AS $$
 $$;
 
 -- ----------------------------------------------------------------------------
--- 4. ADICIONAR CAMPOS DE AUTENTICAÇÃO POR IDENTIFICADOR E TROCA DE SENHA
--- ----------------------------------------------------------------------------
--- Flag de troca obrigatória de senha no perfil
-ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS must_change_password boolean NOT NULL DEFAULT false;
-
--- Identificador (username) na associação da empresa
-ALTER TABLE public.company_memberships
-  ADD COLUMN IF NOT EXISTS username text;
-
--- Restrição de formato e unicidade de username DENTRO da mesma empresa
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'company_memberships_company_id_username_key'
-  ) THEN
-    ALTER TABLE public.company_memberships
-      ADD CONSTRAINT company_memberships_company_id_username_key UNIQUE (company_id, username);
-  END IF;
-END $$;
-
-CREATE INDEX IF NOT EXISTS idx_company_memberships_username
-  ON public.company_memberships (company_id, lower(username))
-  WHERE username IS NOT NULL;
-
--- ----------------------------------------------------------------------------
--- 5. RESOLUÇÃO SEGURA DE IDENTIFICADOR (SEM VAZAMENTO OU ENUMERAÇÃO)
+-- 4. RESOLUÇÃO SEGURA DE IDENTIFICADOR (SEM VAZAMENTO OU ENUMERAÇÃO)
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.resolve_employee_identifier(p_company_slug text, p_username text)
 RETURNS jsonb
@@ -406,3 +410,39 @@ CREATE POLICY platform_support_update_policy ON public.platform_support_sessions
   FOR UPDATE TO authenticated
   USING (platform_admin_id = auth.uid() AND public.is_platform_admin())
   WITH CHECK (platform_admin_id = auth.uid() AND public.is_platform_admin());
+
+-- ----------------------------------------------------------------------------
+-- 7. FUNÇÃO SEGURA DE CONFIRMAÇÃO DE TROCA DE SENHA
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.confirm_password_changed()
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  UPDATE public.profiles
+     SET must_change_password = false,
+         updated_at = now()
+   WHERE id = auth.uid();
+  RETURN true;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.confirm_password_changed() TO authenticated;
+
+-- Proteção no profiles: usuário comum não pode desmarcar must_change_password via UPDATE direto
+DROP POLICY IF EXISTS profiles_update_policy ON public.profiles;
+CREATE POLICY profiles_update_policy ON public.profiles
+  FOR UPDATE TO authenticated
+  USING (id = auth.uid() OR public.is_platform_admin())
+  WITH CHECK (
+    public.is_platform_admin()
+    OR (
+      id = auth.uid()
+      AND (
+        -- Impede o usuário de alterar must_change_password arbitrariamente via PostgREST
+        must_change_password = (SELECT p.must_change_password FROM public.profiles p WHERE p.id = auth.uid())
+      )
+    )
+  );

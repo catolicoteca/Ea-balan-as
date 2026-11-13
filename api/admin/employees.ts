@@ -359,12 +359,21 @@ export default async function handler(req: any, res: any) {
         .eq('company_id', companyId)
         .eq('user_id', userId);
 
+      // Se a conta estiver sendo desativada, revoga imediatamente todas as sessões ativas no Supabase Auth
+      if (!isActive) {
+        try {
+          await adminClient.auth.admin.signOut(userId, 'global');
+        } catch {
+          // Ignora se o usuário não possuir sessão ativa no momento
+        }
+      }
+
       return sendJson(res, 200, {
         success: true,
         isActive,
         message: isActive
           ? 'Conta do colaborador reativada com sucesso.'
-          : 'Conta do colaborador desativada com sucesso.',
+          : 'Conta do colaborador desativada com sucesso e todas as sessões ativas foram encerradas.',
       });
     }
 
