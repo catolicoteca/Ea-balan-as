@@ -60,8 +60,9 @@ export const TechnicianOrdersPage: React.FC = () => {
         .select(`
           *,
           client:clients(id, name, trade_name, document_number, phone),
-          unit:client_units(id, unit_name, street, street_number, city, state),
-          equipment:equipments(id, brand, model, serial_number, capacity_label, asset_tag),
+          unit:client_units(id, unit_name, street, street_number, city, state, neighborhood, postal_code),
+          equipment:equipments(id, brand, model, serial_number, capacity_label, asset_tag, inmetro_ordinance),
+          additional_equipments:service_order_equipments(id, equipment_id, is_primary, notes, equipment:equipments(id, brand, model, serial_number, inmetro_ordinance)),
           executions:service_order_executions(id, started_at, checkin_latitude, checkin_longitude, calibration_measurements, diagnosis)
         `)
         .eq('company_id', activeCompany.id)
@@ -239,12 +240,19 @@ export const TechnicianOrdersPage: React.FC = () => {
                     Equipamento
                   </div>
                   {os.equipment ? (
-                    <div className="font-medium text-slate-800 flex items-center gap-1 truncate">
-                      <Scale className="w-3 h-3 text-teal-600 shrink-0" />
-                      <span>{os.equipment.brand} {os.equipment.model}</span>
-                      <span className="text-slate-400 font-mono text-[10px]">
-                        ({os.equipment.serial_number})
-                      </span>
+                    <div className="space-y-0.5">
+                      <div className="font-medium text-slate-800 flex items-center gap-1 truncate">
+                        <Scale className="w-3 h-3 text-teal-600 shrink-0" />
+                        <span>{os.equipment.brand} {os.equipment.model}</span>
+                        <span className="text-slate-400 font-mono text-[10px]">
+                          ({os.equipment.serial_number})
+                        </span>
+                      </div>
+                      {os.additional_equipments && os.additional_equipments.filter(a => a.equipment_id !== os.equipment_id).length > 0 && (
+                        <div className="text-[10px] text-teal-700 font-bold flex items-center gap-1">
+                          <span>+{os.additional_equipments.filter(a => a.equipment_id !== os.equipment_id).length} outra(s) balança(s) vinculada(s)</span>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="text-[11px] text-slate-400 italic">

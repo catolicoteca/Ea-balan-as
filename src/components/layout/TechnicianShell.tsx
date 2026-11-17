@@ -7,6 +7,7 @@ import {
   LogOut,
   UserCheck,
   Shield,
+  Boxes,
 } from 'lucide-react';
 import { useAuthTenant } from '../../contexts/AuthTenantContext';
 import { BrandLogo } from '../ui/BrandLogo';
@@ -20,6 +21,11 @@ export const TechnicianShell: React.FC = () => {
       to: '/tecnico/ordens',
       label: 'Minhas OS',
       icon: <ClipboardList className="w-5 h-5" />,
+    },
+    {
+      to: '/tecnico/estoque',
+      label: 'Meu Estoque',
+      icon: <Boxes className="w-5 h-5" />,
     },
     {
       to: '/tecnico/catalogo',

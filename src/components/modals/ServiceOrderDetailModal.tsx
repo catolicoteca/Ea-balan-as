@@ -8,15 +8,20 @@ import {
   UserCheck,
   History,
   Share2,
+  Plus,
+  Trash2,
+  Layers,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuthTenant } from '../../contexts/AuthTenantContext';
 import { translateSupabaseError } from '../../lib/errors';
 import { buildWhatsAppUrl } from '../../lib/validation';
 import type {
+  Equipment,
   OSStatus,
   ServiceOrder,
   ServiceOrderAttachment,
+  ServiceOrderEquipment,
   ServiceOrderExecution,
   ServiceOrderHistoryItem,
   ServiceOrderItem,
@@ -31,7 +36,7 @@ import {
   OS_TYPE_LABELS,
 } from '../ui/Badge';
 import { AlertBanner } from '../ui/EmptyState';
-import { CheckboxField, SelectField } from '../ui/FormField';
+import { CheckboxField, InputField, SelectField } from '../ui/FormField';
 import { ServiceOrderItemsSection } from './ServiceOrderItemsSection';
 import { ServiceOrderFieldExecutionSection } from './ServiceOrderFieldExecutionSection';
 import { ServiceOrderPhotosSection } from './ServiceOrderPhotosSection';
@@ -74,6 +79,15 @@ export const ServiceOrderDetailModal: React.FC<ServiceOrderDetailModalProps> = (
     ServiceOrderSignature[]
   >([]);
   const [fieldItems, setFieldItems] = useState<ServiceOrderItem[]>([]);
+
+  // Múltiplas balanças por OS
+  const [soEquipments, setSoEquipments] = useState<(ServiceOrderEquipment & { equipment?: Equipment })[]>([]);
+  const [clientEquipments, setClientEquipments] = useState<Equipment[]>([]);
+  const [isAddingEquip, setIsAddingEquip] = useState(false);
+  const [selectedEquipId, setSelectedEquipId] = useState('');
+  const [newEquipNotes, setNewEquipNotes] = useState('');
+  const [addingEquipLoading, setAddingEquipLoading] = useState(false);
+  const [equipActionError, setEquipActionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!osId || !activeCompany) {
@@ -129,7 +143,20 @@ export const ServiceOrderDetailModal: React.FC<ServiceOrderDetailModalProps> = (
             .eq('is_active', true)
             .order('full_name', { ascending: true })
         : Promise.resolve({ data: [] as Technician[], error: null }),
-    ]).then(([osRes, histRes, itemsRes, techsRes]) => {
+      supabase
+        .from('service_order_equipments')
+        .select(`
+          id,
+          company_id,
+          service_order_id,
+          equipment_id,
+          is_primary,
+          notes,
+          equipment:equipments(*)
+        `)
+        .eq('service_order_id', osId)
+        .eq('company_id', activeCompany.id),
+    ]).then(async ([osRes, histRes, itemsRes, techsRes, soEquipsRes]) => {
       if (cancelled) return;
 
       if (osRes.error) {
@@ -144,11 +171,23 @@ export const ServiceOrderDetailModal: React.FC<ServiceOrderDetailModalProps> = (
         setNextStatus(loaded.status);
         setNextPrimaryTechId(loaded.primary_technician_id ?? '');
         setAllowSharedTechView(loaded.allow_company_technicians_view);
+
+        // Carrega outras balanças cadastradas para o cliente desta OS
+        if (loaded.client_id) {
+          const { data: clEquips } = await supabase
+            .from('equipments')
+            .select('*')
+            .eq('client_id', loaded.client_id)
+            .eq('company_id', activeCompany.id)
+            .order('model', { ascending: true });
+          if (clEquips) setClientEquipments(clEquips as Equipment[]);
+        }
       }
 
       setHistory((histRes.data as ServiceOrderHistoryItem[]) ?? []);
       setFieldItems((itemsRes.data as ServiceOrderItem[]) ?? []);
       setTechnicians((techsRes.data as Technician[]) ?? []);
+      setSoEquipments((soEquipsRes.data as any[]) ?? []);
       setLoading(false);
     });
 
@@ -196,6 +235,48 @@ export const ServiceOrderDetailModal: React.FC<ServiceOrderDetailModalProps> = (
     }
 
     setSuccessMsg('Ordem de serviço atualizada no banco de dados.');
+    onUpdated();
+  };
+
+  const handleAddScaleToOS = async () => {
+    if (!order || !activeCompany || !selectedEquipId) return;
+    setAddingEquipLoading(true);
+    setEquipActionError(null);
+
+    const { error: insErr } = await supabase.from('service_order_equipments').insert({
+      company_id: activeCompany.id,
+      service_order_id: order.id,
+      equipment_id: selectedEquipId,
+      is_primary: false,
+      notes: newEquipNotes.trim() || null,
+    });
+
+    setAddingEquipLoading(false);
+    if (insErr) {
+      setEquipActionError(translateSupabaseError(insErr));
+      return;
+    }
+
+    setIsAddingEquip(false);
+    setSelectedEquipId('');
+    setNewEquipNotes('');
+    setReloadKey((k) => k + 1);
+    onUpdated();
+  };
+
+  const handleRemoveScaleFromOS = async (linkId: string) => {
+    if (!activeCompany) return;
+    const { error: delErr } = await supabase
+      .from('service_order_equipments')
+      .delete()
+      .eq('id', linkId)
+      .eq('company_id', activeCompany.id);
+
+    if (delErr) {
+      setEquipActionError(translateSupabaseError(delErr));
+      return;
+    }
+    setReloadKey((k) => k + 1);
     onUpdated();
   };
 
@@ -319,12 +400,15 @@ export const ServiceOrderDetailModal: React.FC<ServiceOrderDetailModalProps> = (
             <div className="p-4 rounded-xl border border-slate-200 space-y-1.5">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                 <Scale className="w-3.5 h-3.5 text-teal-600" />
-                Balança / Equipamento Vinculado
+                Balança Principal
               </div>
               {order.equipment ? (
                 <>
-                  <div className="text-sm font-semibold text-slate-900">
-                    {order.equipment.brand} {order.equipment.model}
+                  <div className="text-sm font-semibold text-slate-900 flex items-center justify-between">
+                    <span>{order.equipment.brand} {order.equipment.model}</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-100 text-teal-800">
+                      Principal
+                    </span>
                   </div>
                   <div className="text-xs text-slate-600 font-mono">
                     Nº Série: {order.equipment.serial_number}
@@ -337,6 +421,11 @@ export const ServiceOrderDetailModal: React.FC<ServiceOrderDetailModalProps> = (
                       Capacidade: {order.equipment.capacity_label}
                     </div>
                   )}
+                  {order.equipment.inmetro_ordinance && (
+                    <div className="text-[11px] text-teal-800 font-medium pt-0.5">
+                      {order.equipment.inmetro_ordinance}
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="text-xs text-slate-400 pt-1">
@@ -344,6 +433,142 @@ export const ServiceOrderDetailModal: React.FC<ServiceOrderDetailModalProps> = (
                 </div>
               )}
             </div>
+          </div>
+
+          {/* MÚLTIPLAS BALANÇAS POR ORDEM DE SERVIÇO */}
+          <div className="p-4 rounded-xl border border-slate-200/90 bg-white space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-teal-700" />
+                <span>
+                  Balanças Atendidas Nesta OS ({1 + soEquipments.filter((e) => !e.is_primary && e.equipment_id !== order.equipment_id).length})
+                </span>
+              </div>
+              {!['completed', 'cancelled'].includes(order.status) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  leftIcon={<Plus className="w-3.5 h-3.5" />}
+                  onClick={() => setIsAddingEquip(!isAddingEquip)}
+                  className="text-[11px] h-7 px-2.5 text-teal-700 border-teal-300 hover:bg-teal-50"
+                >
+                  {isAddingEquip ? 'Fechar' : '+ Vincular Outra Balança'}
+                </Button>
+              )}
+            </div>
+
+            {/* Lista de Balanças Adicionais */}
+            {soEquipments.filter((e) => !e.is_primary && e.equipment_id !== order.equipment_id).length === 0 && !isAddingEquip ? (
+              <p className="text-[11px] text-slate-500 italic">
+                Apenas a balança principal está vinculada a esta visita. Clique acima para incluir outros equipamentos do mesmo cliente.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {soEquipments
+                  .filter((e) => !e.is_primary && e.equipment_id !== order.equipment_id)
+                  .map((seq) => (
+                    <div
+                      key={seq.id}
+                      className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-xs"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900">
+                            {seq.equipment?.brand} {seq.equipment?.model || 'Balança Adicional'}
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700">
+                            Adicional
+                          </span>
+                        </div>
+                        <div className="text-slate-600 font-mono text-[11px]">
+                          Série: {seq.equipment?.serial_number || 'S/N'} • Cap.: {seq.equipment?.capacity_label || 'N/A'}
+                        </div>
+                        {seq.equipment?.inmetro_ordinance && (
+                          <div className="text-[11px] text-teal-800 font-medium">
+                            {seq.equipment.inmetro_ordinance}
+                          </div>
+                        )}
+                        {seq.notes && (
+                          <div className="text-slate-500 italic text-[11px]">Obs: {seq.notes}</div>
+                        )}
+                      </div>
+
+                      {!['completed', 'cancelled'].includes(order.status) && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveScaleFromOS(seq.id)}
+                          className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                          title="Desvincular balança desta OS"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            {/* Painel Inline para Adicionar Balança */}
+            {isAddingEquip && (
+              <div className="p-3.5 bg-slate-50/90 rounded-xl space-y-3 border border-slate-300">
+                <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Scale className="w-3.5 h-3.5 text-teal-600" />
+                  <span>Vincular Balança do Cliente à OS</span>
+                </div>
+
+                {equipActionError && (
+                  <div className="text-xs text-red-700 bg-red-50 p-2 rounded-lg border border-red-200">
+                    {equipActionError}
+                  </div>
+                )}
+
+                <SelectField
+                  label="Selecione a Balança Adicional"
+                  value={selectedEquipId}
+                  onChange={(e) => setSelectedEquipId(e.target.value)}
+                >
+                  <option value="">-- Escolha uma balança cadastrada deste cliente --</option>
+                  {clientEquipments
+                    .filter(
+                      (eq) =>
+                        eq.id !== order.equipment_id &&
+                        !soEquipments.some((s) => s.equipment_id === eq.id)
+                    )
+                    .map((eq) => (
+                      <option key={eq.id} value={eq.id}>
+                        {eq.brand} {eq.model} (Série: {eq.serial_number}) {eq.capacity_label ? `• ${eq.capacity_label}` : ''}
+                      </option>
+                    ))}
+                </SelectField>
+
+                <InputField
+                  label="Observações para Esta Balança (Opcional)"
+                  placeholder="Ex: Verificar prato, pés niveladores e conferir calibração"
+                  value={newEquipNotes}
+                  onChange={(e) => setNewEquipNotes(e.target.value)}
+                />
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    type="button"
+                    onClick={() => setIsAddingEquip(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    size="sm"
+                    type="button"
+                    isLoading={addingEquipLoading}
+                    disabled={!selectedEquipId}
+                    onClick={handleAddScaleToOS}
+                  >
+                    Confirmar Vínculo
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Escopo / Defeito relatado */}

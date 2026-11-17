@@ -125,7 +125,7 @@ export default async function handler(req: any, res: any) {
       } = body as {
         fullName?: string;
         username?: string;
-        role?: 'administrator' | 'technician';
+        role?: 'administrator' | 'stock_manager' | 'technician';
         tempPassword?: string;
         phone?: string;
         cpf?: string;
@@ -146,9 +146,9 @@ export default async function handler(req: any, res: any) {
         });
       }
 
-      if (role !== 'administrator' && role !== 'technician') {
+      if (role !== 'administrator' && role !== 'stock_manager' && role !== 'technician') {
         return sendJson(res, 400, {
-          error: 'Perfil inválido: escolha entre Administrador ou Técnico.',
+          error: 'Perfil inválido: escolha entre Administrador, Responsável pelo Estoque ou Técnico.',
         });
       }
 

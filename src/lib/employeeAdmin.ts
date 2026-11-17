@@ -5,7 +5,7 @@ export interface CreateEmployeePayload {
   companyId: string;
   fullName: string;
   username: string;
-  role: 'administrator' | 'technician';
+  role: 'administrator' | 'stock_manager' | 'technician';
   tempPassword: string;
   phone?: string;
   cpf?: string;

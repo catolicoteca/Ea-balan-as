@@ -1,5 +1,5 @@
-export type AppRole = 'manager' | 'administrator' | 'technician';
-export type EffectiveRole = 'platform_admin' | 'manager' | 'administrator' | 'technician';
+export type AppRole = 'manager' | 'administrator' | 'stock_manager' | 'technician';
+export type EffectiveRole = 'platform_admin' | 'manager' | 'administrator' | 'stock_manager' | 'technician';
 
 export type OSStatus =
   | 'open'
@@ -223,7 +223,7 @@ export interface ServiceOrder {
   > | null;
   equipment?: Pick<
     Equipment,
-    'id' | 'brand' | 'model' | 'serial_number' | 'capacity_label' | 'asset_tag'
+    'id' | 'brand' | 'model' | 'serial_number' | 'capacity_label' | 'asset_tag' | 'inmetro_ordinance'
   > | null;
   primary_technician?: Pick<Technician, 'id' | 'full_name' | 'calendar_color' | 'phone'> | null;
   assignments?: ServiceOrderAssignment[];
@@ -429,4 +429,78 @@ export interface ServiceOrderSignature {
   signature_file_path: string;
   signed_at: string;
   metadata?: Record<string, unknown>;
+}
+
+export type StockLocationType = 'central' | 'technician' | 'warehouse' | 'vehicle';
+
+export interface StockLocation {
+  id: string;
+  company_id: string;
+  name: string;
+  location_type: StockLocationType;
+  technician_id?: string | null;
+  technician?: Pick<Technician, 'id' | 'full_name' | 'phone'> | null;
+  is_active: boolean;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface InventoryItem {
+  id: string;
+  company_id: string;
+  location_id: string;
+  location?: Pick<StockLocation, 'id' | 'name' | 'location_type'> | null;
+  catalog_item_id?: string | null;
+  item_code: string;
+  name: string;
+  category?: string | null;
+  unit_of_measure: string;
+  quantity: number;
+  min_quantity: number;
+  unit_cost: number;
+  unit_price: number;
+  shelf_location?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type StockMovementType =
+  | 'entry'
+  | 'transfer_out'
+  | 'transfer_in'
+  | 'consumption'
+  | 'adjustment_positive'
+  | 'adjustment_negative';
+
+export interface StockMovement {
+  id: string;
+  company_id: string;
+  movement_type: StockMovementType;
+  source_location_id?: string | null;
+  source_location?: Pick<StockLocation, 'id' | 'name'> | null;
+  destination_location_id?: string | null;
+  destination_location?: Pick<StockLocation, 'id' | 'name'> | null;
+  catalog_item_id?: string | null;
+  item_code: string;
+  quantity: number;
+  unit_cost: number;
+  service_order_id?: string | null;
+  service_order_item_id?: string | null;
+  technician_id?: string | null;
+  performed_by?: string | null;
+  invoice_number?: string | null;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface StockAlert {
+  item_id: string;
+  item_code: string;
+  item_name: string;
+  location_id: string;
+  location_name: string;
+  location_type: StockLocationType;
+  current_quantity: number;
+  min_quantity: number;
+  unit_cost: number;
 }

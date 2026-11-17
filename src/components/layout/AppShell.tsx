@@ -16,6 +16,7 @@ import {
   ChevronDown,
   Tag,
   Layers,
+  Boxes,
 } from 'lucide-react';
 import { useAuthTenant } from '../../contexts/AuthTenantContext';
 import { BrandLogo } from '../ui/BrandLogo';
@@ -68,6 +69,12 @@ const NAV_ITEMS: NavItem[] = [
     to: '/app/tabela-precos',
     label: 'Tabela de Preços',
     icon: <Tag className="w-4 h-4" />,
+    allowTechnician: true,
+  },
+  {
+    to: '/app/estoque',
+    label: 'Estoque & Peças',
+    icon: <Boxes className="w-4 h-4" />,
     allowTechnician: true,
   },
   {

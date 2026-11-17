@@ -67,6 +67,23 @@ export function getPermissionsForRole(role: EffectiveRole | null): RolePermissio
     };
   }
 
+  if (role === 'stock_manager') {
+    return {
+      canManagePlatformCompanies: false,
+      canManageCompanySettings: false,
+      canManageClients: false,
+      canManageEquipments: false,
+      canManageTechnicians: false,
+      canCreateServiceOrder: false,
+      canAssignTechnicians: false,
+      canViewReports: false,
+      canManagePriceCatalog: false,
+      canApproveOrderItems: false,
+      canManageStock: true,
+      canManageFinance: false,
+    };
+  }
+
   // Perfil 'technician' ou sem vínculo: acesso estrito apenas às OS atribuídas (validado também por RLS no PostgreSQL)
   return {
     canManagePlatformCompanies: false,
@@ -88,5 +105,6 @@ export const ROLE_LABELS: Record<EffectiveRole, string> = {
   platform_admin: 'Administrador da Plataforma',
   manager: 'Gestor da Empresa',
   administrator: 'Administrador Operacional',
+  stock_manager: 'Responsável pelo Estoque',
   technician: 'Técnico de Campo',
 };

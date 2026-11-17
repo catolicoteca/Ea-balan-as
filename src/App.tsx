@@ -27,6 +27,7 @@ import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { PriceCatalogPage } from './pages/PriceCatalogPage';
 import { TechnicianOrdersPage } from './pages/TechnicianOrdersPage';
+import { InventoryPage } from './pages/InventoryPage';
 
 const AppRoutes: React.FC = () => {
   const location = useLocation();
@@ -134,6 +135,7 @@ const AppRoutes: React.FC = () => {
         <Route path="tecnicos" element={<TechniciansPage />} />
         <Route path="ordens-de-servico" element={<ServiceOrdersPage />} />
         <Route path="tabela-precos" element={<PriceCatalogPage />} />
+        <Route path="estoque" element={<InventoryPage />} />
         <Route path="agenda" element={<SchedulePage />} />
         <Route path="relatorios" element={<ReportsPage />} />
         <Route path="configuracoes" element={<SettingsPage />} />
@@ -146,6 +148,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/tecnico" element={<TechnicianShell />}>
         <Route index element={<Navigate to="/tecnico/ordens" replace />} />
         <Route path="ordens" element={<TechnicianOrdersPage />} />
+        <Route path="estoque" element={<InventoryPage />} />
         <Route path="catalogo" element={<PriceCatalogPage />} />
         <Route path="tabela-precos" element={<PriceCatalogPage />} />
         <Route path="agenda" element={<SchedulePage />} />
@@ -205,6 +208,15 @@ const AppRoutes: React.FC = () => {
         element={
           <Navigate
             to={isPureTechnician ? '/tecnico/tabela-precos' : '/app/tabela-precos'}
+            replace
+          />
+        }
+      />
+      <Route
+        path="/estoque"
+        element={
+          <Navigate
+            to={isPureTechnician ? '/tecnico/estoque' : '/app/estoque'}
             replace
           />
         }

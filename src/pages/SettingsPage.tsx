@@ -86,7 +86,7 @@ export const SettingsPage: React.FC = () => {
   const [empModalOpen, setEmpModalOpen] = useState(false);
   const [empName, setEmpName] = useState('');
   const [empUsername, setEmpUsername] = useState('');
-  const [empRole, setEmpRole] = useState<'administrator' | 'technician'>('technician');
+  const [empRole, setEmpRole] = useState<'administrator' | 'stock_manager' | 'technician'>('technician');
   const [empTempPassword, setEmpTempPassword] = useState('');
   const [empPhone, setEmpPhone] = useState('');
   const [savingEmp, setSavingEmp] = useState(false);
@@ -177,7 +177,11 @@ export const SettingsPage: React.FC = () => {
       setTeamMsg({
         type: 'success',
         text: `Colaborador @${res.user.username} cadastrado com sucesso! Acesso concedido como ${
-          res.user.role === 'administrator' ? 'Administrador' : 'Técnico'
+          res.user.role === 'administrator'
+            ? 'Administrador'
+            : res.user.role === 'stock_manager'
+            ? 'Responsável pelo Estoque'
+            : 'Técnico'
         }. Troca de senha obrigatória exigida no primeiro login.`,
       });
       await loadTeamData();
@@ -808,6 +812,8 @@ export const SettingsPage: React.FC = () => {
                             ? 'Gestor'
                             : m.role === 'administrator'
                             ? 'Administrador'
+                            : m.role === 'stock_manager'
+                            ? 'Responsável Estoque'
                             : 'Técnico'}
                         </span>
 
@@ -918,10 +924,11 @@ export const SettingsPage: React.FC = () => {
             <SelectField
               label="Perfil de Acesso"
               value={empRole}
-              onChange={(e) => setEmpRole(e.target.value as 'administrator' | 'technician')}
+              onChange={(e) => setEmpRole(e.target.value as 'administrator' | 'stock_manager' | 'technician')}
             >
               <option value="technician">Técnico de Campo</option>
               <option value="administrator">Administrador Operacional</option>
+              <option value="stock_manager">Responsável pelo Estoque / Almoxarife</option>
             </SelectField>
           </div>
 
