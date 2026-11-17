@@ -9,6 +9,7 @@ import {
   Building2,
   Edit3,
   Search,
+  Scale,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthTenant } from '../contexts/AuthTenantContext';
@@ -34,6 +35,7 @@ import {
   TextareaField,
 } from '../components/ui/FormField';
 import { AlertBanner, EmptyState } from '../components/ui/EmptyState';
+import { ClientHistoryModal } from '../components/modals/ClientHistoryModal';
 
 export const ClientsPage: React.FC = () => {
   const { activeCompany, user, permissions } = useAuthTenant();
@@ -43,6 +45,7 @@ export const ClientsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
+  const [historyClient, setHistoryClient] = useState<Client | null>(null);
 
   // Modal de Cliente
   const [clientModalOpen, setClientModalOpen] = useState(false);
@@ -401,26 +404,37 @@ export const ClientsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {permissions.canManageClients && (
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openAddUnit(c)}
-                        leftIcon={<MapPin className="w-3.5 h-3.5" />}
-                      >
-                        Nova Unidade
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => openEditClient(c)}
-                        leftIcon={<Edit3 className="w-3.5 h-3.5" />}
-                      >
-                        Editar
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setHistoryClient(c)}
+                      leftIcon={<Scale className="w-3.5 h-3.5 text-teal-600" />}
+                    >
+                      Balanças &amp; OSs
+                    </Button>
+
+                    {permissions.canManageClients && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openAddUnit(c)}
+                          leftIcon={<MapPin className="w-3.5 h-3.5" />}
+                        >
+                          Nova Unidade
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openEditClient(c)}
+                          leftIcon={<Edit3 className="w-3.5 h-3.5" />}
+                        >
+                          Editar
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -646,6 +660,13 @@ export const ClientsPage: React.FC = () => {
           />
         </form>
       </Modal>
+
+      {/* Modal de Histórico e Balanças do Cliente */}
+      <ClientHistoryModal
+        client={historyClient}
+        isOpen={Boolean(historyClient)}
+        onClose={() => setHistoryClient(null)}
+      />
     </div>
   );
 };

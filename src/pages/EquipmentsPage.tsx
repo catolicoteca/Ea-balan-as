@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Scale, Plus, Search, Edit3 } from 'lucide-react';
+import { Scale, Plus, Search, Edit3, Clock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthTenant } from '../contexts/AuthTenantContext';
 import { translateSupabaseError } from '../lib/errors';
@@ -21,6 +21,7 @@ import {
   TextareaField,
 } from '../components/ui/FormField';
 import { AlertBanner, EmptyState } from '../components/ui/EmptyState';
+import { EquipmentHistoryModal } from '../components/modals/EquipmentHistoryModal';
 
 export const EquipmentsPage: React.FC = () => {
   const { activeCompany, user, permissions } = useAuthTenant();
@@ -44,7 +45,9 @@ export const EquipmentsPage: React.FC = () => {
   const [serialNumber, setSerialNumber] = useState('');
   const [assetTag, setAssetTag] = useState('');
   const [inmetroNumber, setInmetroNumber] = useState('');
+  const [inmetroOrdinance, setInmetroOrdinance] = useState('');
   const [sealNumber, setSealNumber] = useState('');
+  const [historyEquip, setHistoryEquip] = useState<Equipment | null>(null);
   const [accuracyClass, setAccuracyClass] = useState<'I' | 'II' | 'III' | 'IIII' | 'N/A'>('III');
   const [capacityLabel, setCapacityLabel] = useState('');
   const [divisionLabel, setDivisionLabel] = useState('');
@@ -136,6 +139,7 @@ export const EquipmentsPage: React.FC = () => {
     setSerialNumber('');
     setAssetTag('');
     setInmetroNumber('');
+    setInmetroOrdinance('');
     setSealNumber('');
     setAccuracyClass('III');
     setCapacityLabel('');
@@ -160,6 +164,7 @@ export const EquipmentsPage: React.FC = () => {
     setSerialNumber(eq.serial_number);
     setAssetTag(eq.asset_tag ?? '');
     setInmetroNumber(eq.inmetro_number ?? '');
+    setInmetroOrdinance(eq.inmetro_ordinance ?? '');
     setSealNumber(eq.seal_number ?? '');
     setAccuracyClass(eq.accuracy_class ?? 'III');
     setCapacityLabel(eq.capacity_label ?? '');
@@ -190,6 +195,7 @@ export const EquipmentsPage: React.FC = () => {
       serial_number: serialNumber,
       asset_tag: assetTag || undefined,
       inmetro_number: inmetroNumber || undefined,
+      inmetro_ordinance: inmetroOrdinance || undefined,
       seal_number: sealNumber || undefined,
       accuracy_class: accuracyClass,
       capacity_label: capacityLabel || undefined,
@@ -217,6 +223,7 @@ export const EquipmentsPage: React.FC = () => {
       serial_number: parsed.data.serial_number,
       asset_tag: parsed.data.asset_tag || null,
       inmetro_number: parsed.data.inmetro_number || null,
+      inmetro_ordinance: parsed.data.inmetro_ordinance || null,
       seal_number: parsed.data.seal_number || null,
       accuracy_class: parsed.data.accuracy_class,
       capacity_label: parsed.data.capacity_label || null,
@@ -361,18 +368,28 @@ export const EquipmentsPage: React.FC = () => {
                     <td className="py-3.5 px-4">
                       <EquipmentStatusBadge status={eq.status} />
                     </td>
-                    {permissions.canManageEquipments && (
-                      <td className="py-3.5 px-5 text-right">
+                    <td className="py-3.5 px-5 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
                         <Button
                           size="sm"
-                          variant="ghost"
-                          onClick={() => openEdit(eq)}
-                          leftIcon={<Edit3 className="w-3.5 h-3.5" />}
+                          variant="outline"
+                          onClick={() => setHistoryEquip(eq)}
+                          leftIcon={<Clock className="w-3.5 h-3.5 text-teal-600" />}
                         >
-                          Editar
+                          Histórico
                         </Button>
-                      </td>
-                    )}
+                        {permissions.canManageEquipments && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openEdit(eq)}
+                            leftIcon={<Edit3 className="w-3.5 h-3.5" />}
+                          >
+                            Editar
+                          </Button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -501,10 +518,16 @@ export const EquipmentsPage: React.FC = () => {
               onChange={(e) => setSealNumber(e.target.value)}
             />
             <InputField
-              label="Nº Portaria Inmetro"
-              placeholder="Ex.: 236/94"
+              label="Nº Inventário / Inmetro"
+              placeholder="Ex.: 1234567"
               value={inmetroNumber}
               onChange={(e) => setInmetroNumber(e.target.value)}
+            />
+            <InputField
+              label="Portaria Inmetro / Dimel"
+              placeholder="Ex.: Portaria Dimel 085/2012"
+              value={inmetroOrdinance}
+              onChange={(e) => setInmetroOrdinance(e.target.value)}
             />
           </div>
 
@@ -577,6 +600,13 @@ export const EquipmentsPage: React.FC = () => {
           />
         </form>
       </Modal>
+
+      {/* Modal de Histórico de Calibrações e Manutenções da Balança */}
+      <EquipmentHistoryModal
+        equipment={historyEquip}
+        isOpen={Boolean(historyEquip)}
+        onClose={() => setHistoryEquip(null)}
+      />
     </div>
   );
 };

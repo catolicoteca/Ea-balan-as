@@ -133,6 +133,7 @@ export interface Equipment {
   serial_number: string;
   asset_tag: string | null;
   inmetro_number: string | null;
+  inmetro_ordinance?: string | null;
   seal_number: string | null;
   accuracy_class: 'I' | 'II' | 'III' | 'IIII' | 'N/A' | null;
   capacity_label: string | null;
@@ -146,6 +147,17 @@ export interface Equipment {
   updated_at: string;
   client?: Pick<Client, 'id' | 'name' | 'trade_name'> | null;
   unit?: Pick<ClientUnit, 'id' | 'unit_name' | 'city' | 'state'> | null;
+}
+
+export interface ServiceOrderEquipment {
+  id: string;
+  company_id: string;
+  service_order_id: string;
+  equipment_id: string;
+  is_primary: boolean;
+  notes?: string | null;
+  created_at: string;
+  equipment?: Equipment | null;
 }
 
 export interface Technician {
@@ -205,13 +217,17 @@ export interface ServiceOrder {
   created_at: string;
   updated_at: string;
   client?: Pick<Client, 'id' | 'name' | 'trade_name' | 'document_number' | 'phone'> | null;
-  unit?: Pick<ClientUnit, 'id' | 'unit_name' | 'street' | 'street_number' | 'city' | 'state'> | null;
+  unit?: Pick<
+    ClientUnit,
+    'id' | 'unit_name' | 'street' | 'street_number' | 'neighborhood' | 'city' | 'state' | 'postal_code'
+  > | null;
   equipment?: Pick<
     Equipment,
     'id' | 'brand' | 'model' | 'serial_number' | 'capacity_label' | 'asset_tag'
   > | null;
   primary_technician?: Pick<Technician, 'id' | 'full_name' | 'calendar_color' | 'phone'> | null;
   assignments?: ServiceOrderAssignment[];
+  additional_equipments?: ServiceOrderEquipment[];
 }
 
 export interface ServiceOrderHistoryItem {

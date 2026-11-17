@@ -21,6 +21,8 @@ import {
   CHECKLIST_STATUS_LABELS,
   getChecklistProgress,
   getGoogleMapsLink,
+  getGoogleMapsNavigationUrl,
+  getWazeNavigationUrl,
   parseExecutionMetadata,
   SCALE_CHECKLIST_ITEMS,
   serializeExecutionMetadata,
@@ -489,6 +491,47 @@ export const ServiceOrderFieldExecutionSection: React.FC<
             )}
           </div>
         </div>
+
+        {/* Acesso Rápido de Navegação ao Endereço do Cliente */}
+        {order.unit && (
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="space-y-0.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-teal-800 flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5 text-teal-600" />
+                Destino do Atendimento
+              </div>
+              <div className="text-xs font-semibold text-slate-800 leading-snug">
+                {order.unit.street}, {order.unit.street_number || 'S/N'}
+                {order.unit.neighborhood ? ` — ${order.unit.neighborhood}` : ''}
+              </div>
+              <div className="text-[11px] text-slate-500">
+                {order.unit.city}/{order.unit.state}
+                {order.unit.postal_code ? ` • CEP ${order.unit.postal_code}` : ''}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1 sm:pt-0">
+              <a
+                href={getWazeNavigationUrl(order.unit)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold shadow-xs transition-colors"
+              >
+                <Navigation className="w-3.5 h-3.5" />
+                Waze
+              </a>
+              <a
+                href={getGoogleMapsNavigationUrl(order.unit)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors"
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                Maps
+              </a>
+            </div>
+          </div>
+        )}
 
         {/* Botões Touch-Friendly Principais */}
         {canEdit && (

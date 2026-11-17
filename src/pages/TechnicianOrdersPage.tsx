@@ -18,6 +18,8 @@ import { useAuthTenant } from '../contexts/AuthTenantContext';
 import {
   getChecklistProgress,
   parseExecutionMetadata,
+  getWazeNavigationUrl,
+  getGoogleMapsNavigationUrl,
 } from '../lib/fieldExecution';
 import type { ServiceOrder, ServiceOrderExecution } from '../types/database';
 import { OSPriorityBadge, OSStatusBadge } from '../components/ui/Badge';
@@ -262,6 +264,41 @@ export const TechnicianOrdersPage: React.FC = () => {
                   )}
                 </div>
               </div>
+
+              {/* Ações Rápidas de Navegação GPS */}
+              {os.unit && (
+                <div
+                  className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 bg-slate-50/80 p-2 rounded-lg"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span className="text-[11px] font-semibold text-slate-700 flex items-center gap-1">
+                    <Navigation className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                    <span>Traçar Rota:</span>
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <a
+                      href={getWazeNavigationUrl(os.unit)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-sky-500 hover:bg-sky-600 text-white text-[11px] font-bold shadow-xs transition-colors"
+                      title="Navegar com Waze"
+                    >
+                      <Navigation className="w-3 h-3" />
+                      Waze
+                    </a>
+                    <a
+                      href={getGoogleMapsNavigationUrl(os.unit)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition-colors"
+                      title="Navegar com Google Maps"
+                    >
+                      <MapPin className="w-3 h-3" />
+                      Google Maps
+                    </a>
+                  </div>
+                </div>
+              )}
 
               <div className="pt-2 border-t border-slate-50 flex flex-wrap items-center justify-between gap-2 text-xs">
                 {(() => {

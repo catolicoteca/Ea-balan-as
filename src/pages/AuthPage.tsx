@@ -247,41 +247,44 @@ export const AuthPage: React.FC = () => {
           />
 
           <div className="mt-10 space-y-4">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-teal-500/15 text-teal-200 border border-teal-400/25">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-teal-500/20 text-teal-200 border border-teal-400/30">
               <ShieldCheck className="w-3.5 h-3.5" />
-              Metrion • Plataforma SaaS Multi-tenant
+              Metrion • Tecnologia em Assistência Técnica
             </span>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight leading-snug">
-              Gestão Corporativa de Assistência Técnica e Metrologia em Campo
+              Gestão Especializada de Assistência Técnica de Balanças
             </h1>
             <p className="text-sm text-slate-300 leading-relaxed max-w-md">
-              Controle integrado de clientes, parques de balanças, ordens de serviço,
-              agenda técnica e rastreabilidade por empresa com isolamento em banco de
-              dados (Row Level Security).
+              Controle completo de clientes, parques de equipamentos, ordens de serviço,
+              estoque de peças e relatórios de campo com total agilidade operacional.
             </p>
           </div>
 
-          <ul className="mt-8 space-y-3 text-xs text-slate-200/90">
+          <ul className="mt-8 space-y-3.5 text-xs text-slate-200/95 font-medium">
             <li className="flex items-center gap-2.5">
               <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
-              Isolamento rigoroso entre empresas e unidades de atendimento
+              Cadastro detalhado de balanças, capacidades e portarias Inmetro
             </li>
             <li className="flex items-center gap-2.5">
               <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
-              Perfis dedicados para Administrador, Gestor e Técnico de Campo
+              Aplicativo mobile-first para técnicos com navegação Waze e Maps
             </li>
             <li className="flex items-center gap-2.5">
               <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
-              Identidade visual personalizável (nome, logotipo e paleta por empresa)
+              Controle de lacres, checklists metrológicos e fotos de evidência
+            </li>
+            <li className="flex items-center gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
+              Gestão de estoque central e por mala/veículo do técnico
             </li>
           </ul>
         </div>
 
         <div className="relative z-10 pt-8 mt-8 border-t border-white/10 text-xs text-slate-400 flex items-center justify-between gap-2">
-          <span>METRION • SaaS B2B</span>
+          <span>METRION • Soluções em Metrologia</span>
           <span className="flex items-center gap-1 text-teal-300">
             <Lock className="w-3.5 h-3.5" />
-            Supabase Auth + PostgreSQL RLS
+            Conexão Criptografada e Segura
           </span>
         </div>
       </div>

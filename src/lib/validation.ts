@@ -208,6 +208,7 @@ export const equipmentSchema = z.object({
   serial_number: z.string().trim().min(1, 'O número de série é obrigatório.'),
   asset_tag: z.string().trim().optional(),
   inmetro_number: z.string().trim().optional(),
+  inmetro_ordinance: z.string().trim().optional(),
   seal_number: z.string().trim().optional(),
   accuracy_class: z.enum(['I', 'II', 'III', 'IIII', 'N/A']),
   capacity_label: z.string().trim().optional(),

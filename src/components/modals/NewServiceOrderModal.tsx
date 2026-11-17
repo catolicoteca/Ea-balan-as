@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Scale } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuthTenant } from '../../contexts/AuthTenantContext';
 import { translateSupabaseError } from '../../lib/errors';
@@ -47,6 +47,7 @@ export const NewServiceOrderModal: React.FC<NewServiceOrderModalProps> = ({
   const [clientId, setClientId] = useState('');
   const [unitId, setUnitId] = useState('');
   const [equipmentId, setEquipmentId] = useState('');
+  const [additionalEquipIds, setAdditionalEquipIds] = useState<string[]>([]);
   const [primaryTechId, setPrimaryTechId] = useState('');
   const [assistantTechIds, setAssistantTechIds] = useState<string[]>([]);
   const [orderType, setOrderType] = useState<OSType>('corrective');
@@ -145,6 +146,7 @@ export const NewServiceOrderModal: React.FC<NewServiceOrderModalProps> = ({
     setClientId('');
     setUnitId('');
     setEquipmentId('');
+    setAdditionalEquipIds([]);
     setPrimaryTechId('');
     setAssistantTechIds([]);
     setOrderType('corrective');
@@ -237,6 +239,29 @@ export const NewServiceOrderModal: React.FC<NewServiceOrderModalProps> = ({
         await supabase.from('service_order_assignments').insert(assignmentRows);
       }
 
+      // Insere vínculos de múltiplas balanças na OS caso selecionadas
+      if (insertedOS?.id && (equipmentId || additionalEquipIds.length > 0)) {
+        try {
+          const equipRows = [
+            ...(equipmentId ? [{
+              company_id: activeCompany.id,
+              service_order_id: insertedOS.id,
+              equipment_id: equipmentId,
+              is_primary: true,
+            }] : []),
+            ...additionalEquipIds.map((eqId) => ({
+              company_id: activeCompany.id,
+              service_order_id: insertedOS.id,
+              equipment_id: eqId,
+              is_primary: false,
+            })),
+          ];
+          await supabase.from('service_order_equipments').insert(equipRows);
+        } catch {
+          // Mantém compatibilidade caso a migração de multi-equipamentos ainda não tenha sido aplicada
+        }
+      }
+
       resetForm();
       onCreated();
       onClose();
@@ -250,6 +275,12 @@ export const NewServiceOrderModal: React.FC<NewServiceOrderModalProps> = ({
   const toggleAssistantTech = (techId: string) => {
     setAssistantTechIds((prev) =>
       prev.includes(techId) ? prev.filter((id) => id !== techId) : [...prev, techId]
+    );
+  };
+
+  const toggleAdditionalEquip = (eqId: string) => {
+    setAdditionalEquipIds((prev) =>
+      prev.includes(eqId) ? prev.filter((id) => id !== eqId) : [...prev, eqId]
     );
   };
 
@@ -353,6 +384,41 @@ export const NewServiceOrderModal: React.FC<NewServiceOrderModalProps> = ({
                 </option>
               ))}
             </SelectField>
+
+            {/* Inclusão de Outras Balanças do Cliente no mesmo Atendimento */}
+            {clientId && equipments.length > 1 && (
+              <div className="mt-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                <div className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                  <Scale className="w-3.5 h-3.5 text-teal-600" />
+                  <span>Outras Balanças no mesmo atendimento ({additionalEquipIds.length} adicionais):</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-32 overflow-y-auto pr-1">
+                  {equipments
+                    .filter((eq) => eq.id !== equipmentId)
+                    .map((eq) => (
+                      <label
+                        key={eq.id}
+                        className={`flex items-start gap-2 p-1.5 rounded-lg border text-xs cursor-pointer transition-colors ${
+                          additionalEquipIds.includes(eq.id)
+                            ? 'bg-teal-50 border-teal-300 text-teal-900 font-semibold'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={additionalEquipIds.includes(eq.id)}
+                          onChange={() => toggleAdditionalEquip(eq.id)}
+                          className="mt-0.5 rounded text-teal-600 focus:ring-teal-500"
+                        />
+                        <div className="truncate text-[11px]">
+                          <span>{eq.brand} {eq.model}</span>
+                          <span className="text-slate-400 block font-mono text-[10px]">S/N: {eq.serial_number}</span>
+                        </div>
+                      </label>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <SelectField

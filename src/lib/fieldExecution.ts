@@ -157,8 +157,51 @@ export function getChecklistProgress(
   };
 }
 
+export interface NavigationAddress {
+  street?: string | null;
+  street_number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+}
+
+export function formatAddressForQuery(addr: NavigationAddress): string {
+  const parts: string[] = [];
+  if (addr.street) {
+    let s = addr.street;
+    if (addr.street_number) s += `, ${addr.street_number}`;
+    parts.push(s);
+  }
+  if (addr.neighborhood) parts.push(addr.neighborhood);
+  if (addr.city) {
+    let c = addr.city;
+    if (addr.state) c += ` - ${addr.state}`;
+    parts.push(c);
+  }
+  if (addr.postal_code) parts.push(`CEP ${addr.postal_code}`);
+  return parts.join(', ');
+}
+
 export function getGoogleMapsLink(lat: number, lng: number): string {
   return `https://www.google.com/maps?q=${lat},${lng}`;
+}
+
+export function getGoogleMapsNavigationUrl(target: NavigationAddress | { lat: number; lng: number }): string {
+  if ('lat' in target && typeof target.lat === 'number') {
+    return `https://www.google.com/maps/search/?api=1&query=${target.lat},${target.lng}`;
+  }
+  const query = encodeURIComponent(formatAddressForQuery(target as NavigationAddress));
+  return `https://www.google.com/maps/search/?api=1&query=${query}`;
+}
+
+export function getWazeNavigationUrl(target: NavigationAddress | { lat: number; lng: number }): string {
+  if ('lat' in target && typeof target.lat === 'number') {
+    return `https://waze.com/ul?ll=${target.lat},${target.lng}&navigate=yes`;
+  }
+  const query = encodeURIComponent(formatAddressForQuery(target as NavigationAddress));
+  return `https://waze.com/ul?q=${query}&navigate=yes`;
 }
 
 export interface GpsCaptureResult {
