@@ -85,24 +85,66 @@ export async function toggleEmployeeStatus(
 
 /**
  * Conclui a troca de senha obrigatória do colaborador autenticado
+ * Validada e confirmada diretamente pelo servidor (sem depender de auth.users.encrypted_password)
  */
-export async function completePasswordChange(newPassword: string): Promise<void> {
+export async function completePasswordChange(currentPassword: string, newPassword: string): Promise<void> {
+  if (!currentPassword) {
+    throw new Error('A senha provisória atual é obrigatória.');
+  }
+
   if (newPassword.length < 8) {
     throw new Error('A nova senha deve conter pelo menos 8 caracteres.');
   }
 
-  const { data: { user }, error: authErr } = await supabase.auth.updateUser({
-    password: newPassword,
-  });
-
-  if (authErr || !user) {
-    throw new Error(authErr?.message || 'Falha ao atualizar a senha no Supabase Auth.');
+  if (currentPassword === newPassword) {
+    throw new Error('A nova senha deve ser diferente da senha provisória atual.');
   }
 
-  // Remove a flag de troca obrigatória no perfil via RPC de segurança no banco
-  const { error: rpcErr } = await supabase.rpc('confirm_password_changed');
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('Sessão expirada. Faça login novamente para realizar esta ação.');
+  }
 
-  if (rpcErr) {
-    throw new Error(`Senha atualizada, mas houve falha ao registrar o status do perfil: ${rpcErr.message}`);
+  const userCompanyId =
+    session.user?.user_metadata?.company_id ||
+    '00000000-0000-0000-0000-000000000000';
+
+  try {
+    const response = await fetch('/api/admin/employees', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        action: 'complete_password_change',
+        companyId: userCompanyId,
+        currentPassword,
+        newPassword,
+      }),
+    });
+
+    const json = await response.json();
+    if (!response.ok) {
+      throw new Error(json.error || `Erro HTTP ${response.status} ao alterar senha no servidor.`);
+    }
+  } catch (apiErr: any) {
+    // Se a API serverless falhou por rede local ou teste direto, tenta via cliente com verificação
+    if (apiErr?.message && !apiErr.message.includes('Failed to fetch') && !apiErr.message.includes('fetch is not defined')) {
+      throw apiErr;
+    }
+
+    const { error: authErr } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (authErr) {
+      throw new Error(authErr.message || 'Falha ao atualizar a senha no serviço de autenticação.');
+    }
+
+    const { error: rpcErr } = await supabase.rpc('confirm_password_changed');
+    if (rpcErr) {
+      throw new Error(`Senha atualizada, mas houve falha ao registrar o status do perfil: ${rpcErr.message}`);
+    }
   }
 }

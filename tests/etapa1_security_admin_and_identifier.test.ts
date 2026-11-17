@@ -139,16 +139,17 @@ describe('ETAPA 1 — 4º Perfil (Administrator), Isolamento Super Admin, e Aute
         ('${companyBId}', '${USER_GESTOR_B}', 'manager', 'gestor.b', true);
 
       -- Perfis
-      INSERT INTO public.profiles (id, full_name, email, default_company_id, must_change_password) VALUES
-        ('${USER_GESTOR_A}', 'Eduardo Gestor', 'gestor@eabalancas.com.br', '${companyAId}', false),
-        ('${USER_ADMIN_A}', 'Carlos Administrador', 'carlos.admin.ea-balancas@auth.metrion.internal', '${companyAId}', true),
-        ('${USER_TECNICO_A}', 'Roberto Silva', 'roberto.campo@eabalancas.com.br', '${companyAId}', false),
-        ('${USER_GESTOR_B}', 'Gestor Empresa B', 'gestor@metrobrasil.com.br', '${companyBId}', false)
+      INSERT INTO public.profiles (id, full_name, email, default_company_id, must_change_password, password_change_ticket) VALUES
+        ('${USER_GESTOR_A}', 'Eduardo Gestor', 'gestor@eabalancas.com.br', '${companyAId}', false, NULL),
+        ('${USER_ADMIN_A}', 'Carlos Administrador', 'carlos.admin.ea-balancas@auth.metrion.internal', '${companyAId}', true, '77777777-7777-4777-8777-777777777777'),
+        ('${USER_TECNICO_A}', 'Roberto Silva', 'roberto.campo@eabalancas.com.br', '${companyAId}', false, NULL),
+        ('${USER_GESTOR_B}', 'Gestor Empresa B', 'gestor@metrobrasil.com.br', '${companyBId}', false, NULL)
       ON CONFLICT (id) DO UPDATE SET
         full_name = EXCLUDED.full_name,
         email = EXCLUDED.email,
         default_company_id = EXCLUDED.default_company_id,
-        must_change_password = EXCLUDED.must_change_password;
+        must_change_password = EXCLUDED.must_change_password,
+        password_change_ticket = EXCLUDED.password_change_ticket;
 
       -- Técnico Empresa A
       INSERT INTO public.technicians (company_id, user_id, full_name, email, is_active)
@@ -357,34 +358,20 @@ describe('ETAPA 1 — 4º Perfil (Administrator), Isolamento Super Admin, e Aute
       )
     ).rejects.toThrow();
 
-    // 8.3 Usuário tenta chamar confirm_password_changed() sem trocar a senha -> REJEITADO
+    // 8.3 Usuário tenta chamar confirm_password_changed() sem ticket do servidor -> REJEITADO
     await expect(
       runAsUser(USER_ADMIN_A, `SELECT public.confirm_password_changed();`)
-    ).rejects.toThrow(/A troca de senha não foi detectada/);
+    ).rejects.toThrow(/exige validação prévia pelo servidor/);
 
-    // 8.4 Atacante atualiza metadados ou updated_at no auth.users e tenta confirmar -> REJEITADO
-    await db.exec(`
-      UPDATE auth.users
-         SET raw_user_meta_data = '{"spoofed": true}'::jsonb,
-             updated_at = now()
-       WHERE id = '${USER_ADMIN_A}';
-    `);
+    // 8.4 Atacante tenta forjar ticket inválido -> REJEITADO
     await expect(
-      runAsUser(USER_ADMIN_A, `SELECT public.confirm_password_changed();`)
-    ).rejects.toThrow(/A troca de senha não foi detectada/);
+      runAsUser(USER_ADMIN_A, `SELECT public.confirm_password_changed('00000000-0000-0000-0000-000000000000'::uuid);`)
+    ).rejects.toThrow(/exige validação prévia pelo servidor/);
 
-    // 8.5 Troca real de senha no Supabase Auth: o hash da senha criptografada muda
-    await db.exec(`
-      UPDATE auth.users
-         SET encrypted_password = 'new_personal_bcrypt_hash_987654',
-             updated_at = now()
-       WHERE id = '${USER_ADMIN_A}';
-    `);
-
-    // Agora sim: a RPC segura confirma a troca com comprovação matemática do hash
+    // 8.5 Validação autoritativa do servidor com ticket válido (sem depender de encrypted_password)
     const confirmRes = await runAsUser<{ confirm_password_changed: boolean }>(
       USER_ADMIN_A,
-      `SELECT public.confirm_password_changed();`
+      `SELECT public.confirm_password_changed('77777777-7777-4777-8777-777777777777'::uuid);`
     );
     expect(confirmRes[0].confirm_password_changed).toBe(true);
 

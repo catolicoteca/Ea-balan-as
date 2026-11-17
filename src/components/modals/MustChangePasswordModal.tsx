@@ -9,6 +9,7 @@ interface MustChangePasswordModalProps {
 }
 
 export const MustChangePasswordModal: React.FC<MustChangePasswordModalProps> = ({ onSuccess }) => {
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,8 +19,18 @@ export const MustChangePasswordModal: React.FC<MustChangePasswordModalProps> = (
     e.preventDefault();
     setError(null);
 
+    if (!currentPassword) {
+      setError('Informe sua senha provisória atual.');
+      return;
+    }
+
     if (newPassword.length < 8) {
-      setError('A nova senha deve ter no mínimo 8 caracteres.');
+      setError('A nova senha pessoal deve ter no mínimo 8 caracteres.');
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      setError('A nova senha deve ser diferente da senha provisória atual.');
       return;
     }
 
@@ -30,7 +41,7 @@ export const MustChangePasswordModal: React.FC<MustChangePasswordModalProps> = (
 
     setLoading(true);
     try {
-      await completePasswordChange(newPassword);
+      await completePasswordChange(currentPassword, newPassword);
       onSuccess();
     } catch (err: any) {
       setError(err?.message || 'Falha ao redefinir sua senha.');
@@ -68,6 +79,15 @@ export const MustChangePasswordModal: React.FC<MustChangePasswordModalProps> = (
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <InputField
+            label="Senha Provisória Atual"
+            type="password"
+            required
+            placeholder="Digite a senha fornecida pelo gestor"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+          />
+
           <InputField
             label="Nova Senha Pessoal"
             type="password"

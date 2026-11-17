@@ -102,7 +102,20 @@ export const AuthPage: React.FC = () => {
             p_username: cleanUser,
           });
 
-          if (rpcErr || !idRes || !idRes.found) {
+          if (rpcErr || !idRes) {
+            setLoading(false);
+            registerFailedAttempt();
+            setErrorMsg('Erro ao consultar identificador no servidor. Tente novamente.');
+            return;
+          }
+
+          if (idRes.locked) {
+            setLoading(false);
+            setErrorMsg(idRes.error || 'Muitas tentativas incorretas de autenticação. Acesso temporariamente bloqueado por 15 minutos pelo servidor.');
+            return;
+          }
+
+          if (!idRes.found) {
             setLoading(false);
             registerFailedAttempt();
             setErrorMsg('Código da empresa, usuário ou senha incorretos.');
@@ -124,9 +137,32 @@ export const AuthPage: React.FC = () => {
           setLoading(false);
 
           if (authErr) {
+            // Registra tentativa com erro no servidor para acionar o rate limiting
+            try {
+              const { data: failData } = await supabase.rpc('record_login_failure', {
+                p_company_slug: cleanSlug,
+                p_username: cleanUser,
+              });
+              if (failData?.locked) {
+                setErrorMsg('Muitas tentativas incorretas de senha. Esta conta foi bloqueada no servidor por 15 minutos por segurança.');
+                return;
+              }
+            } catch {
+              // ignora falha de RPC
+            }
             registerFailedAttempt();
             setErrorMsg('Código da empresa, usuário ou senha incorretos.');
             return;
+          }
+
+          // Sucesso: limpa tentativas no servidor
+          try {
+            await supabase.rpc('record_login_success', {
+              p_company_slug: cleanSlug,
+              p_username: cleanUser,
+            });
+          } catch {
+            // ignora
           }
 
           setFailedAttempts(0);

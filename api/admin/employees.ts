@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
 // Obtenção segura das variáveis de ambiente no servidor
@@ -92,19 +93,22 @@ export default async function handler(req: any, res: any) {
 
     const adminClient = getSupabaseAdmin();
 
-    // 2. Autorização Rigorosa: Gestor Ativo da Empresa Solicitada (Isolamento Multi-tenant)
-    const { data: callerMembership, error: memErr } = await adminClient
-      .from('company_memberships')
-      .select('id, role, is_active')
-      .eq('company_id', companyId)
-      .eq('user_id', callerUser.id)
-      .eq('is_active', true)
-      .maybeSingle();
+    // 2. Autorização Rigorosa: Isolamento Multi-tenant
+    // Se a ação for 'complete_password_change', o próprio colaborador autenticado altera a SUA credencial
+    if (action !== 'complete_password_change') {
+      const { data: callerMembership, error: memErr } = await adminClient
+        .from('company_memberships')
+        .select('id, role, is_active')
+        .eq('company_id', companyId)
+        .eq('user_id', callerUser.id)
+        .eq('is_active', true)
+        .maybeSingle();
 
-    if (memErr || !callerMembership || callerMembership.role !== 'manager') {
-      return sendJson(res, 403, {
-        error: 'Acesso negado: apenas o gestor ativo desta empresa pode gerenciar acessos de colaboradores.',
-      });
+      if (memErr || !callerMembership || callerMembership.role !== 'manager') {
+        return sendJson(res, 403, {
+          error: 'Acesso negado: apenas o gestor ativo desta empresa pode gerenciar acessos de colaboradores.',
+        });
+      }
     }
 
     // ------------------------------------------------------------------------
@@ -201,6 +205,7 @@ export default async function handler(req: any, res: any) {
       }
 
       const newUserId = createdAuth.user.id;
+      const passwordTicket = randomUUID();
 
       // Atualiza perfil marcando troca de senha obrigatória (must_change_password)
       await adminClient.from('profiles').upsert({
@@ -210,6 +215,7 @@ export default async function handler(req: any, res: any) {
         phone: phone ? phone.trim() : null,
         default_company_id: companyId,
         must_change_password: true,
+        password_change_ticket: passwordTicket,
       });
 
       // Vincula na associação de membros da empresa
@@ -308,10 +314,14 @@ export default async function handler(req: any, res: any) {
         });
       }
 
-      // Força troca de senha no primeiro login pós-redefinição
+      // Força troca de senha no primeiro login pós-redefinição e gera ticket de segurança
+      const passwordTicket = randomUUID();
       await adminClient
         .from('profiles')
-        .update({ must_change_password: true })
+        .update({
+          must_change_password: true,
+          password_change_ticket: passwordTicket,
+        })
         .eq('id', userId);
 
       return sendJson(res, 200, {
@@ -374,6 +384,95 @@ export default async function handler(req: any, res: any) {
         message: isActive
           ? 'Conta do colaborador reativada com sucesso.'
           : 'Conta do colaborador desativada com sucesso e todas as sessões ativas foram encerradas.',
+      });
+    }
+
+    // ------------------------------------------------------------------------
+    // AÇÃO 4: CONCLUIR TROCA OBRIGATÓRIA DE SENHA (SERVER-VERIFIED)
+    // ------------------------------------------------------------------------
+    if (action === 'complete_password_change') {
+      const { currentPassword, newPassword } = body as {
+        currentPassword?: string;
+        newPassword?: string;
+      };
+
+      if (!currentPassword || typeof currentPassword !== 'string') {
+        return sendJson(res, 400, { error: 'A senha provisória atual é obrigatória.' });
+      }
+
+      if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
+        return sendJson(res, 400, { error: 'A nova senha pessoal deve conter no mínimo 8 caracteres.' });
+      }
+
+      if (currentPassword === newPassword) {
+        return sendJson(res, 400, { error: 'A nova senha deve ser diferente da senha provisória atual.' });
+      }
+
+      if (!callerUser.email) {
+        return sendJson(res, 400, { error: 'Usuário sem e-mail cadastrado para autenticação.' });
+      }
+
+      // 1. O servidor valida a senha atual diretamente contra o serviço de autenticação
+      const userClient = getSupabaseUserClient();
+      const { error: verifyAuthErr } = await userClient.auth.signInWithPassword({
+        email: callerUser.email,
+        password: currentPassword,
+      });
+
+      if (verifyAuthErr) {
+        return sendJson(res, 400, {
+          error: 'A senha provisória atual informada está incorreta.',
+        });
+      }
+
+      // 2. Altera a credencial via Admin API (confirmação 100% autoritativa no servidor)
+      const { error: updateAuthErr } = await adminClient.auth.admin.updateUserById(callerUser.id, {
+        password: newPassword,
+      });
+
+      if (updateAuthErr) {
+        return sendJson(res, 400, {
+          error: `Falha ao atualizar a credencial no serviço de autenticação: ${updateAuthErr.message}`,
+        });
+      }
+
+      // 3. Atualiza o perfil removendo a obrigatoriedade e limpando ticket
+      const { error: profileUpdateErr } = await adminClient
+        .from('profiles')
+        .update({
+          must_change_password: false,
+          password_change_ticket: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', callerUser.id);
+
+      if (profileUpdateErr) {
+        return sendJson(res, 500, {
+          error: `Senha atualizada, mas houve erro ao atualizar o perfil: ${profileUpdateErr.message}`,
+        });
+      }
+
+      // 4. Limpa contadores de rate limit do colaborador no banco
+      try {
+        const { data: mem } = await adminClient
+          .from('company_memberships')
+          .select('username, companies(slug)')
+          .eq('user_id', callerUser.id)
+          .maybeSingle();
+
+        if (mem && mem.username && (mem as any).companies?.slug) {
+          await adminClient.rpc('record_login_success', {
+            p_company_slug: (mem as any).companies.slug,
+            p_username: mem.username,
+          });
+        }
+      } catch {
+        // Ignora caso a RPC de rate limit não esteja disponível
+      }
+
+      return sendJson(res, 200, {
+        success: true,
+        message: 'Senha alterada e confirmada com sucesso pelo servidor.',
       });
     }
 
