@@ -55,9 +55,10 @@ describe('FASE A — Separação dos Ambientes Metrion (/platform, /app e /tecni
     expect(appSrc).toContain('path="/ordens-de-servico"');
   });
 
-  it('6. Estrutura de Planos Metrion não gera cobranças ou faturamento fictício na Fase A', () => {
+  it('6. Estrutura de Planos Metrion prepara arquitetura para pagamentos sem cobranças fictícias', () => {
     const plansSrc = readFileSync(resolve('src/pages/PlatformPlansPage.tsx'), 'utf-8');
-    expect(plansSrc).toContain('Cobrança e Assinaturas Ainda Não Implementadas');
-    expect(plansSrc).toContain('A definir na integração');
+    expect(plansSrc).toContain('PlanModal');
+    expect(plansSrc).toContain('CompanySubscriptionModal');
+    expect(plansSrc).toContain('fetchPlans');
   });
 });

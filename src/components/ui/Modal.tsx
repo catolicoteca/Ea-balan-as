@@ -38,20 +38,20 @@ export const Modal: React.FC<ModalProps> = ({
       aria-modal="true"
     >
       <div
-        className={`relative w-full ${maxWidthClass} bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col`}
+        className={`relative w-full ${maxWidthClass} bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90vh] flex flex-col transition-colors`}
       >
-        <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between gap-4 shrink-0">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between gap-4 shrink-0">
           <div>
-            <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
             {subtitle && (
-              <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>
             )}
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Fechar janela"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -60,7 +60,7 @@ export const Modal: React.FC<ModalProps> = ({
         <div className="p-6 overflow-y-auto flex-1">{children}</div>
 
         {footer && (
-          <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/70 rounded-b-2xl flex items-center justify-end gap-2.5 shrink-0">
+          <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 rounded-b-2xl flex items-center justify-end gap-2.5 shrink-0">
             {footer}
           </div>
         )}

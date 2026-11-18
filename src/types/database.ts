@@ -504,3 +504,103 @@ export interface StockAlert {
   min_quantity: number;
   unit_cost: number;
 }
+
+export type BillingCycle = 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'canceled' | 'suspended';
+
+export interface PlanFeatures {
+  stock: boolean;
+  multi_scale_os: boolean;
+  gps_routing: boolean;
+  pdf_reports: boolean;
+  signatures: boolean;
+  photos: boolean;
+  custom_logo: boolean;
+  api_access: boolean;
+}
+
+export interface PlanLimits {
+  max_technicians: number | null;
+  max_users: number | null;
+  max_clients: number | null;
+  max_equipments: number | null;
+  max_storage_mb: number | null;
+  max_monthly_os: number | null;
+}
+
+export interface Plan {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  price: number;
+  billing_cycle: BillingCycle;
+  trial_days: number;
+  is_active: boolean;
+  is_public: boolean;
+  sort_order: number;
+  max_technicians: number | null;
+  max_users: number | null;
+  max_clients: number | null;
+  max_equipments: number | null;
+  max_storage_mb: number | null;
+  max_monthly_os: number | null;
+  features: PlanFeatures;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Subscription {
+  id: string;
+  company_id: string;
+  plan_id: string;
+  plan?: Plan | null;
+  status: SubscriptionStatus;
+  billing_cycle: BillingCycle;
+  current_period_start: string;
+  current_period_end?: string | null;
+  trial_ends_at?: string | null;
+  canceled_at?: string | null;
+  payment_gateway?: string | null;
+  payment_gateway_subscription_id?: string | null;
+  payment_gateway_customer_id?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CompanyPlanOverride {
+  id: string;
+  company_id: string;
+  override_limits: Partial<PlanLimits>;
+  override_features: Partial<PlanFeatures>;
+  reason: string;
+  authorized_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlanAuditLog {
+  id: string;
+  company_id?: string | null;
+  plan_id?: string | null;
+  action: string;
+  actor_user_id?: string | null;
+  previous_state?: Record<string, unknown> | null;
+  new_state?: Record<string, unknown> | null;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface CompanyEffectivePlan {
+  company_id: string;
+  plan_id: string;
+  plan_name: string;
+  plan_slug: string;
+  subscription_status: SubscriptionStatus;
+  billing_cycle: BillingCycle;
+  trial_ends_at?: string | null;
+  is_customized: boolean;
+  effective_limits: PlanLimits;
+  effective_features: PlanFeatures;
+}

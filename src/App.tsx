@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { AuthTenantProvider, useAuthTenant } from './contexts/AuthTenantContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import {
   canAccessManagerAppArea,
   canAccessPlatformArea,
@@ -12,6 +13,7 @@ import { AppShell } from './components/layout/AppShell';
 import { TechnicianShell } from './components/layout/TechnicianShell';
 import { MustChangePasswordModal } from './components/modals/MustChangePasswordModal';
 import { AuthPage } from './pages/AuthPage';
+import { PlatformLoginPage } from './pages/PlatformLoginPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { ActivateAccountPage } from './pages/ActivateAccountPage';
 import { PlatformOverviewPage } from './pages/PlatformOverviewPage';
@@ -49,10 +51,18 @@ const AppRoutes: React.FC = () => {
     return <ActivateAccountPage />;
   }
 
+  // Rota de login dedicada e exclusiva do Super Admin Metrion
+  if (location.pathname === '/platform/login') {
+    if (user && isPlatformAdmin) {
+      return <Navigate to="/platform/overview" replace />;
+    }
+    return <PlatformLoginPage />;
+  }
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#F4F7FA] flex flex-col items-center justify-center gap-3 text-slate-600">
-        <Loader2 className="w-7 h-7 animate-spin text-teal-700" />
+      <div className="min-h-screen bg-[#F4F7FA] dark:bg-slate-950 flex flex-col items-center justify-center gap-3 text-slate-600 dark:text-slate-300">
+        <Loader2 className="w-7 h-7 animate-spin text-teal-700 dark:text-teal-400" />
         <span className="text-xs font-medium">
           Validando sessão e permissões multi-tenant...
         </span>
@@ -61,6 +71,9 @@ const AppRoutes: React.FC = () => {
   }
 
   if (!user) {
+    if (location.pathname.startsWith('/platform')) {
+      return <Navigate to="/platform/login" replace />;
+    }
     return <AuthPage />;
   }
 
@@ -258,11 +271,13 @@ const AppRoutes: React.FC = () => {
 
 export const App: React.FC = () => {
   return (
-    <BrowserRouter>
-      <AuthTenantProvider>
-        <AppRoutes />
-      </AuthTenantProvider>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <AuthTenantProvider>
+          <AppRoutes />
+        </AuthTenantProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 };
 

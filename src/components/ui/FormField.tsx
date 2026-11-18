@@ -25,23 +25,23 @@ export const InputField: React.FC<InputFieldProps> = ({
     <div className="space-y-1">
       <label
         htmlFor={inputId}
-        className="block text-xs font-medium text-slate-700"
+        className="block text-xs font-medium text-slate-700 dark:text-slate-300"
       >
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       <input
         id={inputId}
-        className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 ${
+        className={`w-full rounded-lg border bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-colors focus:outline-none focus:ring-2 ${
           error
-            ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20'
-            : 'border-slate-300 focus:border-teal-600 focus:ring-teal-600/20'
-        } disabled:bg-slate-100 disabled:text-slate-500 ${className}`}
+            ? 'border-red-400 dark:border-red-500/80 focus:border-red-500 focus:ring-red-500/20'
+            : 'border-slate-300 dark:border-slate-700 focus:border-teal-600 focus:ring-teal-600/20'
+        } disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-500 ${className}`}
         {...rest}
       />
       {error ? (
-        <p className="text-xs text-red-600 font-medium">{error}</p>
+        <p className="text-xs text-red-600 dark:text-red-400 font-medium">{error}</p>
       ) : (
-        hint && <p className="text-[11px] text-slate-500">{hint}</p>
+        hint && <p className="text-[11px] text-slate-500 dark:text-slate-400">{hint}</p>
       )}
     </div>
   );
@@ -68,25 +68,25 @@ export const SelectField: React.FC<SelectFieldProps> = ({
     <div className="space-y-1">
       <label
         htmlFor={selectId}
-        className="block text-xs font-medium text-slate-700"
+        className="block text-xs font-medium text-slate-700 dark:text-slate-300"
       >
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       <select
         id={selectId}
-        className={`w-full rounded-lg border bg-white px-3 py-2 text-sm text-slate-900 transition-colors focus:outline-none focus:ring-2 ${
+        className={`w-full rounded-lg border bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 border-slate-300 dark:border-slate-700 transition-colors focus:outline-none focus:ring-2 ${
           error
-            ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20'
-            : 'border-slate-300 focus:border-teal-600 focus:ring-teal-600/20'
-        } disabled:bg-slate-100 ${className}`}
+            ? 'border-red-400 dark:border-red-500/80 focus:border-red-500 focus:ring-red-500/20'
+            : 'border-slate-300 dark:border-slate-700 focus:border-teal-600 focus:ring-teal-600/20'
+        } disabled:bg-slate-100 dark:disabled:bg-slate-800 ${className}`}
         {...rest}
       >
         {children}
       </select>
       {error ? (
-        <p className="text-xs text-red-600 font-medium">{error}</p>
+        <p className="text-xs text-red-600 dark:text-red-400 font-medium">{error}</p>
       ) : (
-        hint && <p className="text-[11px] text-slate-500">{hint}</p>
+        hint && <p className="text-[11px] text-slate-500 dark:text-slate-400">{hint}</p>
       )}
     </div>
   );
@@ -111,24 +111,24 @@ export const TextareaField: React.FC<TextareaFieldProps> = ({
     <div className="space-y-1">
       <label
         htmlFor={textareaId}
-        className="block text-xs font-medium text-slate-700"
+        className="block text-xs font-medium text-slate-700 dark:text-slate-300"
       >
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       <textarea
         id={textareaId}
         rows={rows}
-        className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 transition-colors focus:outline-none focus:ring-2 ${
+        className={`w-full rounded-lg border bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-colors focus:outline-none focus:ring-2 ${
           error
-            ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20'
-            : 'border-slate-300 focus:border-teal-600 focus:ring-teal-600/20'
+            ? 'border-red-400 dark:border-red-500/80 focus:border-red-500 focus:ring-red-500/20'
+            : 'border-slate-300 dark:border-slate-700 focus:border-teal-600 focus:ring-teal-600/20'
         } ${className}`}
         {...rest}
       />
       {error ? (
-        <p className="text-xs text-red-600 font-medium">{error}</p>
+        <p className="text-xs text-red-600 dark:text-red-400 font-medium">{error}</p>
       ) : (
-        hint && <p className="text-[11px] text-slate-500">{hint}</p>
+        hint && <p className="text-[11px] text-slate-500 dark:text-slate-400">{hint}</p>
       )}
     </div>
   );
@@ -150,18 +150,18 @@ export const CheckboxField: React.FC<CheckboxFieldProps> = ({
   return (
     <label
       htmlFor={chkId}
-      className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50/70 cursor-pointer transition-colors"
+      className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50/70 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
     >
       <input
         id={chkId}
         type="checkbox"
-        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-600"
+        className="mt-0.5 h-4 w-4 rounded border-slate-300 dark:border-slate-700 text-teal-600 focus:ring-teal-600"
         {...rest}
       />
       <div className="text-xs">
-        <div className="font-medium text-slate-800">{label}</div>
+        <div className="font-medium text-slate-800 dark:text-slate-200">{label}</div>
         {description && (
-          <div className="text-slate-500 mt-0.5 leading-relaxed">{description}</div>
+          <div className="text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">{description}</div>
         )}
       </div>
     </label>

@@ -9,12 +9,16 @@ import {
   KeyRound,
   UserX,
   UserCheck,
+  Sun,
+  Moon,
+  Laptop,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
   DEFAULT_BRAND_COLORS,
   useAuthTenant,
 } from '../contexts/AuthTenantContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { translateSupabaseError } from '../lib/errors';
 import {
   companySettingsSchema,
@@ -39,7 +43,7 @@ import { InputField, SelectField } from '../components/ui/FormField';
 import { AlertBanner } from '../components/ui/EmptyState';
 import { Modal } from '../components/ui/Modal';
 
-type SettingsTab = 'branding' | 'team';
+type SettingsTab = 'branding' | 'team' | 'appearance';
 
 export const SettingsPage: React.FC = () => {
   const {
@@ -48,6 +52,7 @@ export const SettingsPage: React.FC = () => {
     permissions,
     refreshTenantContext,
   } = useAuthTenant();
+  const { theme, setTheme, resolvedTheme } = useTheme();
 
   const [tab, setTab] = useState<SettingsTab>('branding');
 
@@ -438,6 +443,19 @@ export const SettingsPage: React.FC = () => {
         >
           <Users className="w-4 h-4" />
           Usuários & Permissões
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setTab('appearance')}
+          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
+            tab === 'appearance'
+              ? 'bg-slate-900 text-white'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <Sun className="w-4 h-4" />
+          Aparência & Tema
         </button>
       </div>
 
@@ -891,6 +909,147 @@ export const SettingsPage: React.FC = () => {
               )}
             </Card>
           </div>
+        </div>
+      )}
+
+      {/* ABA 3: APARÊNCIA E TEMA */}
+      {tab === 'appearance' && (
+        <div className="max-w-4xl space-y-6">
+          <Card
+            title="Preferência de Tema e Contraste"
+            subtitle="Escolha a paleta visual que melhor se adapta à sua iluminação e rotina de trabalho"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+              {/* Opção Claro */}
+              <div
+                onClick={() => setTheme('light')}
+                className={`cursor-pointer rounded-xl border-2 p-4 transition-all flex flex-col justify-between ${
+                  theme === 'light'
+                    ? 'border-teal-600 bg-teal-50/40 dark:bg-teal-950/20 shadow-sm'
+                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'
+                }`}
+              >
+                <div>
+                  <div className="w-full h-24 rounded-lg bg-[#F4F7FA] border border-slate-200 p-2 flex flex-col justify-between mb-3 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="w-12 h-2 rounded-full bg-slate-300"></div>
+                      <div className="w-3 h-3 rounded-full bg-teal-500"></div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="w-3/4 h-2 rounded-full bg-slate-300"></div>
+                      <div className="w-1/2 h-2 rounded-full bg-slate-200"></div>
+                    </div>
+                    <div className="h-4 bg-white rounded border border-slate-200"></div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Sun className={`w-4 h-4 ${theme === 'light' ? 'text-teal-600' : 'text-slate-500'}`} />
+                    <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">
+                      Modo Claro
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Visual limpo com fundo claro. Excelente para escritórios e ambientes com boa iluminação.
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-slate-500">
+                    {theme === 'light' ? 'Selecionado' : 'Clique para aplicar'}
+                  </span>
+                  {theme === 'light' && (
+                    <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                  )}
+                </div>
+              </div>
+
+              {/* Opção Escuro */}
+              <div
+                onClick={() => setTheme('dark')}
+                className={`cursor-pointer rounded-xl border-2 p-4 transition-all flex flex-col justify-between ${
+                  theme === 'dark'
+                    ? 'border-teal-500 bg-teal-950/20 shadow-sm'
+                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'
+                }`}
+              >
+                <div>
+                  <div className="w-full h-24 rounded-lg bg-slate-950 border border-slate-800 p-2 flex flex-col justify-between mb-3 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="w-12 h-2 rounded-full bg-slate-700"></div>
+                      <div className="w-3 h-3 rounded-full bg-teal-400"></div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="w-3/4 h-2 rounded-full bg-slate-700"></div>
+                      <div className="w-1/2 h-2 rounded-full bg-slate-800"></div>
+                    </div>
+                    <div className="h-4 bg-slate-900 rounded border border-slate-800"></div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Moon className={`w-4 h-4 ${theme === 'dark' ? 'text-teal-400' : 'text-slate-500'}`} />
+                    <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">
+                      Modo Escuro
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Alto contraste com tons escuros. Reduz a fadiga visual e economiza bateria em celulares em campo.
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-slate-500">
+                    {theme === 'dark' ? 'Selecionado' : 'Clique para aplicar'}
+                  </span>
+                  {theme === 'dark' && (
+                    <span className="w-2 h-2 rounded-full bg-teal-400"></span>
+                  )}
+                </div>
+              </div>
+
+              {/* Opção Automático / Sistema */}
+              <div
+                onClick={() => setTheme('system')}
+                className={`cursor-pointer rounded-xl border-2 p-4 transition-all flex flex-col justify-between ${
+                  theme === 'system'
+                    ? 'border-teal-500 bg-teal-50/40 dark:bg-teal-950/20 shadow-sm'
+                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'
+                }`}
+              >
+                <div>
+                  <div className="w-full h-24 rounded-lg bg-gradient-to-r from-[#F4F7FA] to-slate-950 border border-slate-300 dark:border-slate-700 p-2 flex flex-col justify-between mb-3 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="w-12 h-2 rounded-full bg-slate-400"></div>
+                      <div className="w-3 h-3 rounded-full bg-teal-400"></div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="w-3/4 h-2 rounded-full bg-slate-400"></div>
+                      <div className="w-1/2 h-2 rounded-full bg-slate-500"></div>
+                    </div>
+                    <div className="h-4 bg-white/70 dark:bg-slate-900/70 rounded"></div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Laptop className={`w-4 h-4 ${theme === 'system' ? 'text-teal-500' : 'text-slate-500'}`} />
+                    <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">
+                      Automático (Sistema)
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Alterna dinamicamente entre claro e escuro de acordo com as configurações do seu Windows, macOS, Android ou iOS.
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-slate-500">
+                    {theme === 'system' ? `Ativo (${resolvedTheme === 'dark' ? 'Escuro' : 'Claro'})` : 'Clique para aplicar'}
+                  </span>
+                  {theme === 'system' && (
+                    <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 p-3.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 flex items-center justify-between">
+              <div>
+                <strong>Dica de Produtividade em Campo:</strong> Técnicos em inspeção de balanças em frigoríficos ou pátios externos podem usar o Modo Escuro para melhor visualização sob iluminação intensa ou pouca luz.
+              </div>
+            </div>
+          </Card>
         </div>
       )}
 

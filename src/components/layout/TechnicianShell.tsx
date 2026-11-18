@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useAuthTenant } from '../../contexts/AuthTenantContext';
 import { BrandLogo } from '../ui/BrandLogo';
+import { ThemeToggle } from '../ui/ThemeToggle';
 
 export const TechnicianShell: React.FC = () => {
   const { user, profile, activeCompany, effectiveRole, signOut } = useAuthTenant();
@@ -40,7 +41,7 @@ export const TechnicianShell: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F4F7FA] flex flex-col text-slate-800">
+    <div className="min-h-screen bg-[#F4F7FA] dark:bg-slate-950 flex flex-col text-slate-800 dark:text-slate-100 transition-colors">
       {/* Top Header do Portal do Técnico */}
       <header className="sticky top-0 z-40 bg-[#0B2545] text-white shadow-md border-b border-slate-700">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -66,7 +67,9 @@ export const TechnicianShell: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <ThemeToggle variant="compact" />
+
             {/* Perfil do Técnico */}
             <div className="text-right hidden sm:block">
               <div className="text-xs font-semibold text-white">
@@ -108,7 +111,7 @@ export const TechnicianShell: React.FC = () => {
       </main>
 
       {/* Bottom Bar Mobile-First para Navegação em Campo */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shadow-lg md:hidden transition-colors">
         <div className="flex items-center justify-around py-2 px-1">
           {navItems.map((item) => (
             <NavLink
@@ -117,8 +120,8 @@ export const TechnicianShell: React.FC = () => {
               className={({ isActive }) =>
                 `flex flex-col items-center justify-center py-1 px-3 rounded-lg text-[11px] font-semibold transition-all ${
                   isActive
-                    ? 'text-teal-700 bg-teal-50 font-bold'
-                    : 'text-slate-500 hover:text-slate-800'
+                    ? 'text-teal-700 bg-teal-50 dark:text-teal-300 dark:bg-teal-950/60 font-bold'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`
               }
             >
@@ -131,7 +134,7 @@ export const TechnicianShell: React.FC = () => {
 
       {/* Desktop Sub-nav Bar */}
       <div className="hidden md:block fixed bottom-4 right-4 z-30">
-        <div className="bg-slate-900 text-white px-3 py-1.5 rounded-full text-xs shadow-xl flex items-center gap-2 border border-slate-700">
+        <div className="bg-slate-900 dark:bg-slate-800 text-white px-3 py-1.5 rounded-full text-xs shadow-xl flex items-center gap-2 border border-slate-700">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
           <span>Ambiente de Campo do Técnico</span>
         </div>

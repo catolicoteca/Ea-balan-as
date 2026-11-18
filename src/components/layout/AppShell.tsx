@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
@@ -15,13 +15,13 @@ import {
   Building,
   ChevronDown,
   Tag,
-  Layers,
   Boxes,
 } from 'lucide-react';
 import { useAuthTenant } from '../../contexts/AuthTenantContext';
 import { BrandLogo } from '../ui/BrandLogo';
 import { RoleBadge } from '../ui/Badge';
 import { GlobalSearchBar } from './GlobalSearchBar';
+import { ThemeToggle } from '../ui/ThemeToggle';
 
 import type { RolePermissions } from '../../lib/permissions';
 
@@ -112,7 +112,6 @@ export const AppShell: React.FC = () => {
     selectCompany,
     signOut,
   } = useAuthTenant();
-  const navigate = useNavigate();
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -174,20 +173,6 @@ export const AppShell: React.FC = () => {
             <span className="text-[10px] text-slate-300/80">Acesso restrito</span>
           )}
         </div>
-
-        {isPlatformAdmin && (
-          <button
-            type="button"
-            onClick={() => {
-              setMobileOpen(false);
-              navigate('/platform');
-            }}
-            className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/30 text-[11px] font-semibold text-amber-200 transition-colors"
-          >
-            <Layers className="w-3.5 h-3.5 text-amber-300" />
-            Painel Metrion (/platform)
-          </button>
-        )}
       </div>
 
       {/* Menu de Módulos */}
@@ -254,7 +239,7 @@ export const AppShell: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen flex bg-[#F4F7FA]">
+    <div className="min-h-screen flex bg-[#F4F7FA] dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
       {/* Sidebar Desktop */}
       <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 z-30 shadow-xl">
         <SidebarContent />
@@ -284,13 +269,13 @@ export const AppShell: React.FC = () => {
       {/* Área Principal */}
       <div className="flex-1 flex flex-col lg:pl-64 min-w-0">
         {/* Topbar Corporativa */}
-        <header className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-200/90 px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+        <header className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200/90 dark:border-slate-800 px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4 transition-colors">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
               aria-label="Abrir menu de navegação"
-              className="lg:hidden p-2 -ml-1 rounded-lg text-slate-600 hover:bg-slate-100"
+              className="lg:hidden p-2 -ml-1 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -298,13 +283,15 @@ export const AppShell: React.FC = () => {
             <GlobalSearchBar />
           </div>
 
-          <div className="hidden sm:flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
+            <ThemeToggle variant="compact" />
+
             {activeCompany && (
-              <div className="text-right">
-                <div className="text-xs font-semibold text-slate-800">
+              <div className="text-right hidden sm:block">
+                <div className="text-xs font-semibold text-slate-800 dark:text-slate-100">
                   {activeCompany.name}
                 </div>
-                <div className="text-[11px] text-slate-500">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
                   {activeCompany.document_cnpj || 'Ambiente Multi-tenant Seguro'}
                 </div>
               </div>
