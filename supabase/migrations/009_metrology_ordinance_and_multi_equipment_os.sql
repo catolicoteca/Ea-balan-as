@@ -37,6 +37,14 @@ CREATE INDEX IF NOT EXISTS idx_so_equipments_so
 CREATE INDEX IF NOT EXISTS idx_so_equipments_equipment
   ON public.service_order_equipments(equipment_id);
 
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_so_equipment') THEN
+    ALTER TABLE public.service_order_equipments
+      ADD CONSTRAINT uq_so_equipment UNIQUE (service_order_id, equipment_id);
+  END IF;
+END $$;
+
 -- ----------------------------------------------------------------------------
 -- 3. TRIGGER DE INTEGRIDADE ESTRITA NO BANCO (ANTI CROSS-TENANT E CROSS-CLIENT)
 -- Garante no motor do banco que OS, balança e company_id pertencem à mesma empresa

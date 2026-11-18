@@ -1,11 +1,8 @@
 -- ============================================================================
--- METRION SAAS V2 — SCRIPT CONSOLIDADO DE MIGRAÇÕES (009 + 010a + 010b)
+-- METRION SAAS V2 — SCRIPT CONSOLIDADO DE RECUPERAÇÃO E MIGRAÇÃO (009 + 010a + 010b)
 -- Ambiente Alvo: metrion-staging (Supabase)
--- Conteúdo:
---   1. Migração 009: Portaria Inmetro/Dimel, Múltiplas Balanças por OS, Validação
---                   Estrita no Banco, Troca Segura de Senha e Rate Limiting no Servidor
---   2. Migração 010a: Adição do valor 'stock_manager' ao enum app_role (Fora de transação)
---   3. Migração 010b: Estoque Central e Veículos, Baixa Automática em OS, Alertas e RLS
+-- 100% IDEMPOTENTE: Seguro para re-execução em bancos parciais ou virgens.
+-- Preserva todos os dados existentes sem perda ou exclusão.
 -- ============================================================================
 
 -- ============================================================================
@@ -50,6 +47,14 @@ CREATE INDEX IF NOT EXISTS idx_so_equipments_so
 
 CREATE INDEX IF NOT EXISTS idx_so_equipments_equipment
   ON public.service_order_equipments(equipment_id);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_so_equipment') THEN
+    ALTER TABLE public.service_order_equipments
+      ADD CONSTRAINT uq_so_equipment UNIQUE (service_order_id, equipment_id);
+  END IF;
+END $$;
 
 -- ----------------------------------------------------------------------------
 -- 3. TRIGGER DE INTEGRIDADE ESTRITA NO BANCO (ANTI CROSS-TENANT E CROSS-CLIENT)
@@ -451,6 +456,16 @@ CREATE INDEX IF NOT EXISTS idx_stock_locations_tech
   ON public.stock_locations(technician_id)
   WHERE technician_id IS NOT NULL;
 
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_company_location_name') THEN
+    ALTER TABLE public.stock_locations ADD CONSTRAINT uq_company_location_name UNIQUE (company_id, name);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_company_tech_location') THEN
+    ALTER TABLE public.stock_locations ADD CONSTRAINT uq_company_tech_location UNIQUE (company_id, technician_id);
+  END IF;
+END $$;
+
 -- ----------------------------------------------------------------------------
 -- 2. SALDOS DE ITENS EM ESTOQUE (POR LOCAL E ITEM)
 -- ----------------------------------------------------------------------------
@@ -479,6 +494,13 @@ CREATE INDEX IF NOT EXISTS idx_inventory_items_lookup
 CREATE INDEX IF NOT EXISTS idx_inventory_items_low_stock
   ON public.inventory_items(company_id, location_id)
   WHERE quantity <= min_quantity;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_location_item_code') THEN
+    ALTER TABLE public.inventory_items ADD CONSTRAINT uq_location_item_code UNIQUE (location_id, item_code);
+  END IF;
+END $$;
 
 -- ----------------------------------------------------------------------------
 -- 3. MOVIMENTAÇÕES DE ESTOQUE (ENTRADAS, TRANSFERÊNCIAS, BAIXAS POR OS)
@@ -512,6 +534,13 @@ CREATE INDEX IF NOT EXISTS idx_stock_movements_company
 CREATE INDEX IF NOT EXISTS idx_stock_movements_so
   ON public.stock_movements(service_order_id)
   WHERE service_order_id IS NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_so_item_movement') THEN
+    ALTER TABLE public.stock_movements ADD CONSTRAINT uq_so_item_movement UNIQUE (service_order_item_id);
+  END IF;
+END $$;
 
 -- ----------------------------------------------------------------------------
 -- 4. FUNÇÕES DE AUTORIZAÇÃO E SUPORTE AO NOVO PERFIL DE ESTOQUE
@@ -924,15 +953,23 @@ CREATE TRIGGER trg_ensure_technician_stock
   FOR EACH ROW
   EXECUTE FUNCTION public.ensure_technician_vehicle_stock_location();
 
--- 7.3 Backfill inicial para empresas e técnicos já cadastrados
+-- 7.3 Backfill inicial para empresas e técnicos já cadastrados (Idempotente)
 INSERT INTO public.stock_locations (company_id, name, location_type, notes)
-SELECT id, 'Almoxarifado Central', 'central', 'Estoque principal da matriz'
-FROM public.companies
+SELECT c.id, 'Almoxarifado Central', 'central', 'Estoque principal da matriz'
+FROM public.companies c
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.stock_locations sl
+   WHERE sl.company_id = c.id AND sl.name = 'Almoxarifado Central'
+)
 ON CONFLICT (company_id, name) DO NOTHING;
 
 INSERT INTO public.stock_locations (company_id, name, location_type, technician_id, notes)
-SELECT company_id, 'Veículo - ' || btrim(full_name), 'technician', id, 'Estoque móvel para peças de pronto atendimento'
-FROM public.technicians
+SELECT t.company_id, 'Veículo - ' || btrim(t.full_name), 'technician', t.id, 'Estoque móvel para peças de pronto atendimento'
+FROM public.technicians t
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.stock_locations sl
+   WHERE sl.company_id = t.company_id AND sl.technician_id = t.id
+)
 ON CONFLICT (company_id, technician_id) DO NOTHING;
 
 -- ----------------------------------------------------------------------------
@@ -943,26 +980,31 @@ ALTER TABLE public.inventory_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stock_movements ENABLE ROW LEVEL SECURITY;
 
 -- 8.1 stock_locations
+DROP POLICY IF EXISTS stock_locations_select_policy ON public.stock_locations;
 CREATE POLICY stock_locations_select_policy ON public.stock_locations
   FOR SELECT TO authenticated
   USING (public.is_company_member(company_id));
 
+DROP POLICY IF EXISTS stock_locations_manage_policy ON public.stock_locations;
 CREATE POLICY stock_locations_manage_policy ON public.stock_locations
   FOR ALL TO authenticated
   USING (public.is_company_stock_manager(company_id))
   WITH CHECK (public.is_company_stock_manager(company_id));
 
 -- 8.2 inventory_items
+DROP POLICY IF EXISTS inventory_items_select_policy ON public.inventory_items;
 CREATE POLICY inventory_items_select_policy ON public.inventory_items
   FOR SELECT TO authenticated
   USING (public.is_company_member(company_id));
 
+DROP POLICY IF EXISTS inventory_items_manage_policy ON public.inventory_items;
 CREATE POLICY inventory_items_manage_policy ON public.inventory_items
   FOR ALL TO authenticated
   USING (public.is_company_stock_manager(company_id))
   WITH CHECK (public.is_company_stock_manager(company_id));
 
 -- 8.3 stock_movements
+DROP POLICY IF EXISTS stock_movements_select_policy ON public.stock_movements;
 CREATE POLICY stock_movements_select_policy ON public.stock_movements
   FOR SELECT TO authenticated
   USING (
@@ -971,6 +1013,7 @@ CREATE POLICY stock_movements_select_policy ON public.stock_movements
     OR performed_by = auth.uid()
   );
 
+DROP POLICY IF EXISTS stock_movements_insert_policy ON public.stock_movements;
 CREATE POLICY stock_movements_insert_policy ON public.stock_movements
   FOR INSERT TO authenticated
   WITH CHECK (
